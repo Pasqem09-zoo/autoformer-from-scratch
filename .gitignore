@@ -226,3 +226,6 @@ DLvenv/
 venv/
 env/
 
+# VSCODE LOCAL SETTINGS
+.vscode/
+
