@@ -229,3 +229,6 @@ env/
 # VSCODE LOCAL SETTINGS
 .vscode/
 
+# dataset
+data/raw/*.csv
+
