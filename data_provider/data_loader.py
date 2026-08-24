@@ -72,11 +72,13 @@ class ETTDataset(Dataset):
 
 
         data = df_data.values
-
-        num_train = int(len(data) * 0.7)
-        num_val = int(len(data) * 0.1)
-        ### Nei dataset di forecasting non facciamo split casuale, perché altrimenti mischieremmo passato e futuro. Sarebbe come studiare per l’esame guardando già le risposte del compito: il modello “bara”
-        num_test = len(data) - num_train - num_val
+        ### Nei dataset di forecasting non facciamo split casuale, perché altrimenti mischieremmo passato e futuro
+        ### Official ETTm2 split used by the Autoformer authors.
+        ### ETTm2 is sampled every 15 minutes, so there are 4 observations per hour.
+        ### train = 12 months, validation = 4 months, test = 4 months
+        num_train = 12 * 30 * 24 * 4 ### 12 mesi × 30 giorni × 24 ore × 4 punti per ora
+        num_val = 4 * 30 * 24 * 4
+        num_test = 4 * 30 * 24 * 4
 
 
         ### per ogni variabile (colonna) calcola media e sd e normalizza tutti i dati (train,test e valid) per avere tutto sulla stessa scala
@@ -87,14 +89,14 @@ class ETTDataset(Dataset):
 
 
         ### La colonna date nel CSV viene letta inizialmente come testo. Con pd.todate() la trasformiamo in una vera data pandas, così possiamo estrarre mese, giorno, ora, ecc
-        df_stamp = df_raw[["date"]]
-        df_stamp["date"] = pd.to_datetime(df_stamp["date"])
-
+        df_stamp = df_raw[["date"]].copy()
+        df_stamp["date"] = pd.to_datetime(df_stamp["date"]) ### trasforma in una vera data pandas
         df_stamp["month"] = df_stamp["date"].dt.month
         df_stamp["day"] = df_stamp["date"].dt.day
         df_stamp["weekday"] = df_stamp["date"].dt.weekday
         df_stamp["hour"] = df_stamp["date"].dt.hour
         df_stamp["minute"] = df_stamp["date"].dt.minute
+        df_stamp["minute"] = df_stamp["minute"].map(lambda x: x // 15)
 
         data_stamp = df_stamp[["month", "day", "weekday", "hour", "minute"]].values
 
@@ -108,7 +110,7 @@ class ETTDataset(Dataset):
         border2s = { ### è il punto dove finisce la porzione di dati di border1s
             "train": num_train,
             "val": num_train + num_val,
-            "test": len(data)
+            "test": num_train + num_val + num_test
         }
 
         border1 = border1s[self.flag]
@@ -118,7 +120,7 @@ class ETTDataset(Dataset):
         self.data_y = data[border1:border2]
         ### train: data[0 : num_train]
         ### validation: data[num_train - seq_len : num_train + num_val]
-        ### test: data[num_train + num_val - seq_len : fine]
+        ### test: data[num_train + num_val - seq_len : num_train + num_val + num_test]
         ### graficamente le finestre sono i pezzi che autoformer prende per fare le predizioni:
         # serie lunga:
         # |--------------------------------------------------------------------------------|
@@ -142,11 +144,26 @@ class ETTDataset(Dataset):
         return len(self.data_x) - self.seq_len - self.pred_len + 1
 
 
-    ### è cio che viene attivato quando chiami un esempio del dataset: dato un indice costruisce la finestra index
-    ### e.g. se index=0 lui costruisce la prima finestra: x_enc = passato dato all'encoder,x_dec = input dato al decoder,
-    # y = futuro vero da prevedere. con i parametri base seq_len = 96,label_len = 48,pred_len = 96 sarà:
-    # x_enc = data[0:96], x_dec = data[48:192], y=data[96:192]
-    # QUINDI GETITEM TRASFORMA UNA LUNGA SERIE TEMPORALE IN UN ESEMPIO SPERUVISIONATO
+
+    ### è ciò che viene attivato quando chiami un esempio del dataset: dato un indice costruisce la finestra index
+    ### e.g. se index=0 lui costruisce la prima finestra:
+    ### seq_x = passato dato all'encoder
+    ### seq_y = ultimi label_len punti noti + pred_len punti futuri veri
+    ### seq_x_mark = time features associate a seq_x
+    ### seq_y_mark = time features associate a seq_y
+    ###
+    ### con i parametri base seq_len = 96, label_len = 48, pred_len = 96 sarà:
+    ### seq_x = data[0:96]
+    ### seq_y = data[48:192]
+    ###
+    ### quindi seq_y contiene:
+    ### data[48:96]   -> parte nota data al decoder
+    ### data[96:192]  -> futuro vero da prevedere
+    ###
+    ### nel training loop useremo solo la parte finale di seq_y come target:
+    ### target = seq_y[:, -pred_len:, :]
+    ###
+    ### QUINDI GETITEM TRASFORMA UNA LUNGA SERIE TEMPORALE IN UN ESEMPIO SUPERVISIONATO
     def __getitem__(self, index):
         """
         Build one sliding window.
@@ -156,23 +173,36 @@ class ETTDataset(Dataset):
         s_end = s_begin + self.seq_len
 
         r_begin = s_end - self.label_len
-        r_end = s_end + self.pred_len
+        r_end = r_begin + self.label_len + self.pred_len
 
-        x_enc = self.data_x[s_begin:s_end] ### passato dato al modello
-        y = self.data_y[s_end:r_end] ### contiene il futuro vero da prevedere
+        seq_x = self.data_x[s_begin:s_end]
+        seq_y = self.data_y[r_begin:r_end]
 
-        x_mark_enc = self.data_stamp[s_begin:s_end]
-        x_mark_dec = self.data_stamp[r_begin:r_end]
-
-        x_dec = self.data_x[r_begin:r_end] ### contiene ultimi label_len punti (noti) + pred_len punti futuri
+        seq_x_mark = self.data_stamp[s_begin:s_end]
+        seq_y_mark = self.data_stamp[r_begin:r_end]
 
         return (
-            torch.tensor(x_enc, dtype=torch.float32),
-            torch.tensor(x_mark_enc, dtype=torch.float32),
-            torch.tensor(x_dec, dtype=torch.float32),
-            torch.tensor(x_mark_dec, dtype=torch.float32),
-            torch.tensor(y, dtype=torch.float32)
+            torch.tensor(seq_x, dtype=torch.float32),
+            torch.tensor(seq_y, dtype=torch.float32), ### contiene ultimi label_len punti noti + pred_len punti futuri veri
+            torch.tensor(seq_x_mark, dtype=torch.float32),
+            torch.tensor(seq_y_mark, dtype=torch.float32)
         )
+    ### il batch è:
+    # batch_x      → input encoder
+    # batch_y      → decoder input completo + target futuro
+    # batch_x_mark → time features encoder
+    # batch_y_mark → time features decoder
+
+
+
+    ### Durante il training lavoriamo sui dati normalizzati, perché la rete impara meglio.
+    ### Però alla fine, quando faremo previsioni e magari vorremo confrontare graficamente le previsioni con i dati reali, vogliamo riportare tutto alla scala originale
+    def inverse_transform(self, data):
+        """
+        Transform normalized data back to the original scale.
+        """
+
+        return self.scaler.inverse_transform(data)
 
 
 

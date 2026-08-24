@@ -94,7 +94,11 @@ class AutoCorrelation(nn.Module):
         - combine shifted values with softmax weights
         """
 
-        batch_size, seq_len, n_heads, d_head = values.shape ### è pensata per prendere in input 4 dim cioè quelle dopo aver diviso in heads. per questo serve AutoCorrelationLayer
+        ### è pensata per prendere in input 4 dim cioè quelle dopo aver diviso in heads. per questo serve AutoCorrelationLayer
+        batch_size = values.shape[0]
+        n_heads = values.shape[1]
+        d_head = values.shape[2]
+        seq_len = values.shape[3]
 
         top_k = int(self.c * math.log(seq_len))     # Number of delays to keep
         top_k = max(1, top_k)                       ### ci deve essere almeno 1 lag
@@ -102,10 +106,11 @@ class AutoCorrelation(nn.Module):
         ### corr ha shape [B, L, H, E]
         ### Facciamo la media su heads e canali, ma NON sul batch
         ### Risultato: [B, L]
-        mean_corr = torch.mean(corr, dim=(2, 3))  ### non tocco [L] perche nella speedup version vogliamo scegliere lag globali non lag diversi per ogni batch/head/canale
-                                                  ### Non facciamo ancora la media sul batch perché vogliamo mantenere pesi diversi per ogni serie
-                                                  ### torch.mean(corr, dim=(2, 3)) restituisce un tensore di dimensione [B, L] che rappresenta la media della correlazione su 
-                                                  ### heads e canali per ogni batch e ogni lag
+        mean_corr = torch.mean(torch.mean(corr, dim=1), dim=1)  ### corr ora ha shape [B, H, E, L], come nel codice ufficiale
+                                                                ### facciamo la media prima sugli heads H e poi sui canali E
+                                                                ### NON facciamo ancora la media sul batch, perché vogliamo mantenere pesi diversi per ogni serie
+                                                                ### il risultato ha shape [B, L]
+                                                                ### quindi per ogni elemento del batch otteniamo una correlazione media per ogni possibile lag temporale
 
         ### Ora scegliamo i lag globali
         ### Per scegliere i lag facciamo la media anche sul batch
@@ -135,7 +140,10 @@ class AutoCorrelation(nn.Module):
         for i in range(top_k):
             delay = int(topk_indices[i].item()) ### seleziona il lag i-esimo
 
-            shifted_values = torch.roll(values, shifts=-delay, dims=1) ### shifta i valori di values di delay posizioni lungo la dimensione della sequenza 1 cioè [L] il tempo
+            shifted_values = torch.roll(values, shifts=-delay, dims=-1)  ### values ora ha shape [B, H, E, L]
+                                                                        ### quindi la dimensione temporale L è l'ultima, cioè dim=-1
+                                                                        ### facciamo lo stesso roll degli autori: spostiamo i values di -delay lungo il tempo
+                                                                        ### in questo modo allineiamo la sequenza rispetto al lag periodico selezionato
 
             ### weights[:, i] ha shape [B]
             ### Lo trasformiamo in [B, 1, 1, 1] per moltiplicarlo con [B, L, H, E]
@@ -146,6 +154,80 @@ class AutoCorrelation(nn.Module):
         ### spostato di 24 e lo usa per costruire la nuova rappresentazione
 
         return output
+
+
+    def _time_delay_aggregation_inference(self, values, corr):
+        """
+        Time-delay aggregation used during validation/test.
+
+        Difference from training version:
+        - training selects global delays shared by the whole batch;
+        - inference selects delays separately for each element of the batch.
+
+        values has shape [B, H, E, L]
+        corr has shape [B, H, E, L]
+        """
+
+        batch_size = values.shape[0]
+        n_heads = values.shape[1]
+        d_head = values.shape[2]
+        seq_len = values.shape[3]
+
+        ### Creo gli indici temporali base [0, 1, ..., L-1]
+        ### e li espando alla shape [B, H, E, L]
+        init_index = torch.arange(seq_len).to(values.device)
+        init_index = init_index.unsqueeze(0).unsqueeze(0).unsqueeze(0)
+        init_index = init_index.repeat(batch_size, n_heads, d_head, 1)
+
+        top_k = int(self.c * math.log(seq_len))
+        top_k = max(1, top_k)
+
+        ### corr ha shape [B, H, E, L]
+        ### facciamo la media su heads e canali
+        ### risultato: [B, L]
+        mean_corr = torch.mean(torch.mean(corr, dim=1), dim=1)
+
+        ### In inference scegliamo i top_k lag migliori per ogni elemento del batch
+        ### weights ha shape [B, top_k]
+        ### delays ha shape [B, top_k]
+        weights, delays = torch.topk(mean_corr, top_k, dim=-1)
+
+        ### trasformiamo le correlazioni in pesi
+        weights = torch.softmax(weights, dim=-1)
+
+        ### raddoppiamo values lungo il tempo per evitare problemi di indice
+        ### quando usiamo gather con i delay
+        tmp_values = values.repeat(1, 1, 1, 2)
+
+        output = torch.zeros_like(values).float()
+
+        for i in range(top_k):
+            ### delay del lag i-esimo per ogni elemento del batch
+            ### shape: [B]
+            delay = delays[:, i]
+
+            ### espandiamo delay a [B, H, E, L]
+            delay = delay.unsqueeze(1).unsqueeze(1).unsqueeze(1)
+            delay = delay.repeat(1, n_heads, d_head, seq_len)
+
+            ### indici temporali spostati secondo il delay
+            gather_index = init_index + delay
+
+            ### prendiamo i values shiftati usando gather
+            pattern = torch.gather(
+                tmp_values,
+                dim=-1,
+                index=gather_index
+            )
+
+            ### peso del lag i-esimo per ogni elemento del batch
+            weight = weights[:, i]
+            weight = weight.unsqueeze(1).unsqueeze(1).unsqueeze(1)
+
+            output = output + pattern * weight
+
+        return output
+    
 
     def forward(self, queries, keys, values): ### percorso completo di questa classe: prende queries, keys, values, 
         ### calcola le correlazioni con FFT, trova implicitamente i lag importanti tramite corr, poi chiama la time-delay aggregation
@@ -159,18 +241,31 @@ class AutoCorrelation(nn.Module):
 
         seq_len = queries.shape[1]
 
+        ### Portiamo la dimensione temporale alla fine, come nel codice ufficiale:
+        ### [B, L, H, E] -> [B, H, E, L]
+        queries = queries.permute(0, 2, 3, 1).contiguous()
+        keys = keys.permute(0, 2, 3, 1).contiguous()
+        values = values.permute(0, 2, 3, 1).contiguous()
+
         # FFT along the temporal dimension
-        q_fft = torch.fft.rfft(queries, dim=1)
-        k_fft = torch.fft.rfft(keys, dim=1)
+        q_fft = torch.fft.rfft(queries, dim=-1)
+        k_fft = torch.fft.rfft(keys, dim=-1)
 
         # Correlation in frequency domain
         res = q_fft * torch.conj(k_fft)
 
         # Back to time domain
-        corr = torch.fft.irfft(res, n=seq_len, dim=1) ### parte FFT che trova le correlazioni sui lag 
+        corr = torch.fft.irfft(res, n=seq_len, dim=-1) ### parte FFT che trova le correlazioni sui lag 
 
         # Time-delay aggregation
-        output = self._time_delay_aggregation(values, corr) ### usa i lag piu importanti per fare una media pesata dei valori shiftati: spostare e aggregare V
+        if self.training:
+            output = self._time_delay_aggregation(values, corr) ### training: usa lag globali condivisi dal batch, come nella speedup version degli autori
+        else:
+            output = self._time_delay_aggregation_inference(values, corr) ### validation/test: usa lag specifici per ogni serie del batch, come nel codice ufficiale
+            
+        ### Torniamo alla shape usata dal resto del nostro codice:
+        ### [B, H, E, L] -> [B, L, H, E]
+        output = output.permute(0, 3, 1, 2).contiguous()
 
         return output
 

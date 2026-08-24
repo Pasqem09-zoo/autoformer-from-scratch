@@ -2,7 +2,7 @@
 # General setup
 # =============================
 
-experiment_name: "ettm2_96_debug"      # name of this experiment
+experiment_name:  "ettm2_96_officiallr_debug"      # name of this experiment
 seed: 3097                             # random seed for reproducibility
 
 
@@ -15,6 +15,7 @@ data_path: "data/raw/ETTm2.csv"        # path to the raw csv file
 
 features: "M"                          # "M" = multivariate forecasting
 target: "OT"                           # target column used in ETT datasets
+results_dir: "results/ettm2_96_officiallr_debug"       # directory where to save results
 
 
 # =============================
@@ -46,6 +47,7 @@ dropout: 0.05                          # dropout used in embedding and model blo
 moving_avg: 25                         # moving average window used in SeriesDecomp
 c: 1                                   # factor c used for top-k delays in Auto-Correlation
 
+activation: "gelu"
 
 # =============================
 # Input / output dimensions
@@ -69,9 +71,15 @@ freq: "t"                              # time frequency: "t" = minutely/15-min f
 # =============================
 
 batch_size: 32                         # number of samples per batch
-learning_rate: 0.0001                  # optimizer learning rate
-epochs: 10                             # maximum number of training epochs
-patience: 3                            # early stopping patience
+learning_rate: 0.0001                 # optimizer learning rate, lr = 1e-6
+epochs: 3                             # maximum number of training epochs
+patience: 2                            # early stopping patience
+lradj: "type1"                         # learning rate adjustment strategy
+
+use_grad_clip: false                    # whether to use gradient clipping
+grad_clip: 1.0                         # maximum norm for gradient clipping
+
+checkpoint_dir: "checkpoints/ettm2_96_officiallr_debug" # directory where to save best model checkpoint
 
 
 # =============================
@@ -87,6 +95,6 @@ use_cpu: true                          # fallback to CPU if no GPU backend is av
 # Weights & Biases
 # =============================
 
-wandb_enabled: true                    # enable W&B logging
+wandb_enabled: false                    # enable W&B logging, true = log metrics to W&B, false = no logging
 wandb_project: "autoformer-from-scratch"
 wandb_run_name: "ettm2_96_debug"

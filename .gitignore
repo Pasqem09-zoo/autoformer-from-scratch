@@ -226,9 +226,16 @@ DLvenv/
 venv/
 env/
 
-# VSCODE LOCAL SETTINGS
+### VSCODE LOCAL SETTINGS ###
 .vscode/
 
-# dataset
+### DATASETS ###
 data/raw/*.csv
 
+### MODEL CHECKPOINTS ###
+checkpoints/*
+!checkpoints/.gitkeep
+
+### EXPERIMENT OUTPUTS ###
+results/*
+!results/.gitkeep

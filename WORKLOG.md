@@ -901,61 +901,6 @@ Finora abbiamo scritto la struttura principale di `data_provider/data_loader.py`
 
 ### Cose da fare
 
-- Scaricare il dataset ETTm2.
-
-- Inserire il file nella cartella:
-
-```text
-data/raw/ETTm2.csv
-```
-
-- Controllare che il CSV venga letto correttamente con `pandas`.
-
-- Verificare le colonne del dataset, in particolare:
-  - `date`;
-  - variabili numeriche;
-  - target `OT`.
-
-- Testare la classe `ETTDataset` nel notebook.
-
-- Creare un dataset di training con:
-
-```python
-flag="train"
-```
-
-- Controllare la lunghezza del dataset con:
-
-```python
-len(train_dataset)
-```
-
-- Estrarre un singolo esempio con:
-
-```python
-sample = train_dataset[0]
-```
-
-- Controllare le shape di:
-  - `x_enc`;
-  - `x_mark_enc`;
-  - `x_dec`;
-  - `x_mark_dec`;
-  - `y`.
-
-- Creare il primo `DataLoader` usando `get_data_loader()`.
-
-- Estrarre un batch dal DataLoader.
-
-- Controllare che il batch abbia le shape attese.
-
-- Verificare che il batch possa essere passato al modello Autoformer.
-
-- Eseguire una prima forward del modello usando dati reali invece di tensori casuali.
-
-- Se la forward funziona, preparare il passaggio successivo verso il training loop.
-
-
 
 ### Cose fatte
 
@@ -966,5 +911,497 @@ sample = train_dataset[0]
 
 - TODO: IN FUTURO NEL README METTICI I COMANDI PER SCARICARE I DATASET
 
+- Scaricato il file dal repository pubblico `ETDataset`:
+
+```bash
+curl -L -o data/raw/ETTm2.csv https://raw.githubusercontent.com/zhouhaoyi/ETDataset/main/ETT-small/ETTm2.csv
+```
+pesa circa `9.2M`
+
+
+- Deciso di ignorare i CSV raw aggiungendo al `.gitignore`:
+
+```gitignore
+# Raw datasets
+data/raw/*.csv
+```
+
+- Testata la lettura del dataset nel notebook con `pandas`.
+
+- Verificate le shape della singola finestra:
+
+```text
+x_enc shape:      torch.Size([96, 7])
+x_mark_enc shape: torch.Size([96, 5])
+x_dec shape:      torch.Size([144, 7])
+x_mark_dec shape: torch.Size([144, 5])
+y shape:          torch.Size([96, 7])
+```
+
+- Estratto un batch reale dal `DataLoader` e Verificato che il batch abbia le shape corrette:
+
+```text
+x_enc shape:      torch.Size([32, 96, 7])
+x_mark_enc shape: torch.Size([32, 96, 5])
+x_dec shape:      torch.Size([32, 144, 7])
+x_mark_dec shape: torch.Size([32, 144, 5])
+y shape:          torch.Size([32, 96, 7])
+```
+
+- Preparato un commit per racchiudere il lavoro fatto finora su architettura Autoformer e pipeline dati.
 
 ### Note eventuali
+
+Il blocco di data loading è ora testato su dati reali.
+
+Il prossimo passo naturale sarà usare un batch reale del `DataLoader` per eseguire una forward del modello Autoformer, controllando che l’output abbia la stessa shape del target `y`.
+
+---
+
+## Sessione 2026-08-19
+
+### Obiettivo della sessione
+
+In questa sessione vogliamo collegare il `DataLoader` reale al modello Autoformer completo.
+
+Finora il modello è stato testato con tensori casuali, mentre il `DataLoader` è stato testato separatamente su ETTm2. L’obiettivo della sessione è prendere un batch reale dal `DataLoader`, passarlo al modello e verificare che la forward funzioni correttamente.
+
+
+### Cose da fare
+
+
+### Cose fatte
+
+- Abbiamo poi testato il `DataLoader`, controllando che riesca a raggruppare più finestre in batch reali:
+
+  ```text
+  x_enc:      [32, 96, 7]
+  x_mark_enc: [32, 96, 5]
+  x_dec:      [32, 144, 7]
+  x_mark_dec: [32, 144, 5]
+  y:          [32, 96, 7]
+  ```
+
+  Successivamente abbiamo passato un batch reale al modello Autoformer su device `mps`, verificando che la forward produca un output confrontabile con il target:
+
+  ```text
+  output: [32, 96, 7]
+  y:      [32, 96, 7]
+  ```
+
+  Abbiamo calcolato una prima loss MSE e poi testato anche un singolo passo di training:
+
+  ```text
+  forward → loss → backward → optimizer step
+  ```
+
+- Infine abbiamo provato una mini training loop su pochi batch e osservato che la loss scende. Questo conferma che il flusso principale funziona:
+
+- Riadattamento del `data_loader.py` confrontandolo con il codice ufficiale degli autori:
+  - sostituito lo split percentuale `70/10/20` con lo split ufficiale per ETTm2:  
+    train = 12 mesi,  
+    validation = 4 mesi,  
+    test = 4 mesi. 
+
+  - aggiornati i bordi di train/validation/test usando la frequenza di ETTm2 a 15 minuti:
+    ```text
+    1 ora = 4 osservazioni
+    ```
+  - modificata la feature temporale `minute`, trasformandola da:
+    0, 15, 30, 45
+    a:
+    0, 1, 2, 3
+  - modificato `__getitem__` per renderlo più simile a quello degli autori:
+    ```text
+    seq_x, seq_y, seq_x_mark, seq_y_mark
+    ```
+  - chiarito che `seq_y` contiene:
+    ultimi label_len punti noti + pred_len punti futuri veri
+  - chiarito che nel training loop il target vero sarà estratto con:
+    ```python
+    target = batch_y[:, -pred_len:, :]
+    ```
+  - aggiunto il metodo `inverse_transform()` per riportare dati normalizzati alla scala originale.
+
+
+
+### Note sul primo test di forward
+
+Con **prima forward reale** intendiamo un test in cui prendiamo un batch vero dal `DataLoader` e lo passiamo dentro il modello Autoformer.
+
+Finora avevamo testato il modello usando tensori casuali, del tipo:
+
+```python
+torch.randn(...)
+```
+
+Questo serviva solo a verificare che l’architettura fosse montata correttamente.
+
+Adesso invece useremo un batch reale costruito dal dataset ETTm2:
+
+```python
+output = model(x_enc, x_mark_enc, x_dec, x_mark_dec)
+```
+
+L’obiettivo non è ancora allenare il modello, ma controllare che tutto il flusso funzioni:
+
+```text
+CSV reale
+→ ETTDataset
+→ DataLoader
+→ batch
+→ Autoformer
+→ output
+```
+
+Il test verrà eseguito sul device disponibile, quindi nel nostro caso probabilmente su **MPS**, usando la GPU Apple Silicon del Mac.
+
+La cosa principale da verificare è che l’output del modello abbia la stessa shape del target `y`:
+
+```text
+output: [32, 96, 7]
+y:      [32, 96, 7]
+```
+
+Se queste shape coincidono, allora possiamo calcolare una prima loss MSE:
+
+```python
+loss = criterion(output, y)
+```
+
+Questo test serve quindi a capire se il modello è pronto per il training vero.
+
+In sintesi, la prima forward reale è una prova generale: non stiamo ancora facendo backpropagation né aggiornando i pesi, ma stiamo controllando che i dati reali entrino correttamente nel modello e producano una previsione confrontabile con il target.
+
+
+---
+
+## Sessione 2026-08-21
+
+### Obiettivo della sessione
+
+In questa sessione vogliamo iniziare a trasformare il lavoro fatto nel notebook in una vera pipeline di training pulita.
+
+Finora abbiamo verificato che:
+
+- il dataset ETTm2 viene letto correttamente;
+- il `DataLoader` costruisce batch reali;
+- Autoformer riceve correttamente i batch;
+- la forward funziona;
+- la loss viene calcolata correttamente;
+- la backpropagation funziona;
+- una mini training loop riesce a girare su MPS.
+
+Il problema emerso è che il training può diventare instabile se non controlliamo bene alcuni dettagli tecnici, come learning rate, gradient clipping, scheduler e costruzione del decoder input.
+
+Prima di lanciare un vero esperimento con W&B, vogliamo quindi completare i file principali legati al training, confrontandoli con l’implementazione ufficiale degli autori.
+
+
+### Cose da fare
+
+- Creare o completare il file:
+
+    ```text
+    utils/logger.py
+    ```
+
+    Questo file servirà per gestire il logging degli esperimenti, soprattutto con W&B:
+
+    ```text
+    train loss
+    validation loss
+    test metrics
+    learning rate
+    config dell’esperimento
+    tempo per epoca
+    ```
+
+
+- Controllare il file di configurazione:
+
+    ```text
+    configs/ettm2_96.yaml
+    ```
+
+    e verificare che sia coerente con i parametri degli autori:
+
+    ```text
+    seq_len = 96
+    label_len = 48
+    pred_len = 96
+    enc_in = 7
+    dec_in = 7
+    c_out = 7
+    d_model = 512
+    n_heads = 8
+    enc_layers = 2
+    dec_layers = 1
+    d_ff = 2048
+    moving_avg = 25
+    factor/c = 1
+    dropout = 0.05
+    batch_size = 32
+    loss = MSE
+    optimizer = Adam
+    ```
+
+- Decidere come gestire il learning rate.
+
+    Nel codice ufficiale gli autori usano:
+
+    ```text
+    learning_rate = 1e-4
+    ```
+
+    ma nei nostri test su MPS il training è risultato più stabile con:
+
+    ```text
+    learning_rate = 1e-5
+    ```
+
+    Questa differenza dovrà essere annotata e motivata.
+
+- Decidere se tenere il gradient clipping.
+
+    Il gradient clipping non sembra presente esplicitamente nel codice ufficiale, ma nei nostri test può essere utile per stabilizzare il training.
+
+    Dovremo quindi annotare chiaramente se lo usiamo come modifica pratica rispetto all’implementazione degli autori.
+
+
+
+### Cose fatte
+
+- TODO: IN exp_main.py nel training abbiamo messo il gradient clipping ma gli autori non lo mettono...
+
+- ```text
+  utils/metrics.py
+  ```
+
+  Serve per calcolare le metriche finali usate nel paper: mse e mae
+
+- ```text
+  utils/tools.py
+  ```
+
+  Serve per funzioni di supporto come seed, early stopping, learning rate adjustment, chechpoint
+
+
+- Creato il file:
+
+    ```text
+    exp/exp_main.py
+    ```
+
+    Questo file dovrà contenere la logica principale dell’esperimento, cioè:
+
+    ```text
+    creazione modello
+    creazione optimizer
+    creazione loss
+    training loop
+    validation loop
+    test finale
+    salvataggio miglior modello
+    ```
+
+- Creare o completare il file:
+
+    ```text
+    utils/tools.py
+    ```
+
+    Questo file servirà per funzioni di supporto usate durante il training, per esempio:
+
+    ```text
+    EarlyStopping
+    adjust_learning_rate
+    set_seed
+    selezione device
+    salvataggio checkpoint
+    ```
+
+- Creare o completare il file:
+
+    ```text
+    utils/metrics.py
+    ```
+
+    Questo file servirà per calcolare le metriche finali sugli esperimenti, in particolare:
+
+    ```text
+    MAE
+    MSE
+    RMSE
+    MAPE
+    MSPE
+    ```
+
+- Confrontare l’attivazione usata nel nostro modello con quella degli autori.
+
+    Nel `main.py` ufficiale compare:
+
+    ```text
+    activation = gelu
+    ```
+
+    noi stiamo usando `ReLU` e abbiamo modificato a `GELU`
+
+
+- Creare o completare il file:
+
+    ```text
+    main.py
+    ```
+
+    Questo file dovrà diventare il punto di ingresso principale del progetto.
+
+    Dovrà leggere la config, creare l’esperimento e lanciare il training.
+
+    La logica finale sarà simile a:
+
+    ```text
+    leggi config
+    setta seed
+    crea Exp_Main
+    lancia train
+    lancia test
+    logga risultati
+    ```
+
+- lanciamo primo mini addestramento da terminale con epochs=2, patience=2. lr=1e-5: sballato
+- secondo mini addestramento con epochs=3, patience=2. lr=1e-6: 
+### Note eventuali
+
+
+
+
+----
+## 2026-08-24
+
+### Obiettivo giornaliero
+
+Rendere la nostra reimplementazione di Autoformer più fedele possibile al codice degli autori, analizzando e correggendo le principali differenze ancora presenti tra la nostra versione e quella ufficiale.
+
+L’obiettivo non è solo far funzionare il training, ma capire quali parti della nostra implementazione possono influenzare stabilità e risultati, così da avvicinarci progressivamente al comportamento riportato nel paper.
+
+### Cose da fare
+
+
+
+- Preparare una run il più possibile fedele agli autori:
+  - `learning_rate: 0.0001`;
+  - `epochs: 10`;
+  - `patience: 3`;
+  - `use_grad_clip: false`;
+  - `lradj: "type1"`.
+
+- Se la run fedele risulta instabile, preparare run diagnostiche:
+  - learning rate più basso;
+  - con e senza gradient clipping;
+  - confronto tra configurazioni più stabili e configurazioni più fedeli agli autori.
+
+### Cose fatte
+
+- È stata completata una prima pipeline funzionante end-to-end:
+  - caricamento del dataset ETTm2;
+  - costruzione dei DataLoader;
+  - forward reale del modello;
+  - training loop completo;
+  - validation;
+  - early stopping;
+  - checkpoint del miglior modello;
+  - test finale;
+  - calcolo di MSE e MAE.
+
+- È stata eseguita una prima run instabile con learning rate troppo alto, che ha mostrato esplosione della loss nelle epoche successive.
+
+- È stata eseguita una run stabile con learning rate più basso:
+  - `learning_rate: 0.000001`;
+  - `epochs: 3`;
+  - `use_grad_clip: true`.
+
+- Risultati ottenuti dalla run stabile:
+  - migliore validation loss alla seconda epoca;
+  - test finale:
+    - `Test MSE: 0.655773`;
+    - `Test MAE: 0.569181`.
+
+- È stato verificato che il checkpoint funziona correttamente:
+  - salva il modello con migliore validation loss;
+  - ricarica il modello migliore prima del test;
+  - evita di usare i pesi dell’ultima epoca se peggiori.
+
+- È stato individuato che il training stabile richiede, almeno per ora, un learning rate più basso rispetto a quello usato dagli autori.
+
+- my_Layernorm.  
+  → differenza individuata.  
+  → da usare al posto di nn.LayerNorm
+
+- EncoderLayer / DecoderLayer.  
+  → confrontati.   
+  → struttura molto simile agli autori
+
+- AutoCorrelation.   
+  → differenza individuata.   
+  → abbiamo allineato meglio:  
+    - shape interna [B, H, E, L]
+    - FFT su dim=-1
+    - roll su dim=-1
+    - aggregation training vs inference/test.  
+  → test di shape passato
+
+- embedding.py: aggiunta l'inizializzazione nn.init.kaiming_normal_() nell'init
+### Note eventuali
+
+La pipeline completa funziona, ma la priorità ora non è ancora migliorare le metriche finali. La priorità è capire quali differenze rispetto agli autori possono spiegare la diversa stabilità del training.
+
+Le differenze più importanti da analizzare sono probabilmente `my_Layernorm` e i dettagli della time-delay aggregation nell’Auto-Correlation. Solo dopo aver sistemato queste parti ha senso provare una run davvero fedele agli autori con learning rate `0.0001` e senza gradient clipping.
+
+La run stabile con learning rate `0.000001` rappresenta una buona baseline interna: dimostra che il modello impara e che tutta la pipeline è corretta. Ora bisogna avvicinare il comportamento della nostra implementazione a quello ufficiale.
+
+
+
+
+### Note su time delay aggregation. Perché esistono due versioni?
+
+Perché la time-delay aggregation può essere fatta in due modi. Durante training gli autori vogliono una versione più efficiente, quindi scelgono dei lag globali condivisi dal batch.
+
+In pratica dicono:
+
+Guardo tutto il batch,
+trovo i lag più importanti in media,
+uso quegli stessi lag per tutti gli esempi del batch.
+
+Questa è la versione che noi abbiamo implementato finora. È più veloce perché non deve scegliere lag diversi per ogni serie. È come dire: “in questa classe tutti fanno lo stesso esercizio”.
+
+In inference/test invece gli autori fanno una cosa più precisa: per ogni elemento del batch scelgo i suoi lag migliori.
+
+Quindi una serie può avere lag importanti:
+
+24, 48, 96
+
+un’altra può avere:
+
+12, 36, 72
+
+e così via. È più personalizzato. È come se durante l’esame ogni studente ricevesse domande leggermente adattate a lui.
+
+Perché noi non l’abbiamo messa subito?
+
+Primo: stavamo costruendo una versione didattica, non ancora identica riga per riga agli autori. Aggiungere subito training aggregation + inference aggregation avrebbe reso il file più difficile da capire.
+
+Secondo: prima volevamo verificare che la pipeline base funzionasse.
+
+La funzione lunga che ti volevo far aggiungere non cambia l’idea matematica generale. Cambia come vengono scelti e applicati i delay durante validation/test. La nostra versione attuale fa:
+
+training:    delay globali nel batch,  
+validation:  delay globali nel batch,  
+test:        delay globali nel batch. 
+
+Gli autori fanno:
+
+training:    delay globali nel batch,  
+validation:  delay specifici per ogni esempio,  
+test:        delay specifici per ogni esempio.  
+
+Quindi sì: se vogliamo essere più fedeli agli autori, prima o poi quella funzione va aggiunta.

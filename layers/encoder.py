@@ -27,7 +27,7 @@ class EncoderLayer(nn.Module):
         x: [batch_size, seq_len, d_model]
     """
 
-    def __init__(self, autocorrelation_layer, d_model, d_ff, moving_avg, dropout=0.1):
+    def __init__(self, autocorrelation_layer, d_model, d_ff, moving_avg, dropout=0.1, activation="gelu"):
         super().__init__()
 
         self.autocorrelation_layer = autocorrelation_layer
@@ -49,7 +49,7 @@ class EncoderLayer(nn.Module):
             kernel_size=1,
             bias=False
         )
-        self.activation = nn.ReLU()
+        self.activation = nn.ReLU() if activation == "relu" else nn.GELU()
 
     def forward(self, x):
         # x has shape [batch_size, seq_len, d_model]

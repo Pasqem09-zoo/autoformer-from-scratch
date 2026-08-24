@@ -41,7 +41,8 @@ class DecoderLayer(nn.Module):
         c_out,
         d_ff,
         moving_avg,
-        dropout=0.1
+        dropout=0.1,
+        activation="gelu"
     ):
         super().__init__()
 
@@ -68,8 +69,8 @@ class DecoderLayer(nn.Module):
             bias=False
         )
 
-        self.activation = nn.ReLU()
-
+        self.activation = nn.ReLU() if activation == "relu" else nn.GELU()
+        
         self.trend_projection = nn.Conv1d(
             in_channels=d_model,
             out_channels=c_out,

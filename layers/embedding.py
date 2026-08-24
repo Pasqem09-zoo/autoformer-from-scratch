@@ -37,6 +37,16 @@ class TokenEmbedding(nn.Module):
             bias=False
         )
 
+        ### Gli autori inizializzano esplicitamente la Conv1d del value embedding
+        ### con kaiming_normal_. Questo rende il nostro TokenEmbedding più fedele al codice ufficiale
+        for module in self.modules():
+            if isinstance(module, nn.Conv1d):
+                nn.init.kaiming_normal_(
+                    module.weight,
+                    mode="fan_in",
+                    nonlinearity="leaky_relu"
+                )
+
     # usiamo una convoluzione 1D. Non è una CNN complicata: serve solo a trasformare ogni punto temporale 
     # guardando anche un pochino i vicini
     def forward(self, x):

@@ -13,6 +13,7 @@ from layers.embedding import DataEmbeddingWithoutPos
 from layers.autocorrelation import AutoCorrelation, AutoCorrelationLayer
 from layers.encoder import EncoderLayer, Encoder
 from layers.decoder import DecoderLayer, Decoder
+from layers.layer_norm import MyLayerNorm
 
 
 class Autoformer(nn.Module):
@@ -53,6 +54,8 @@ class Autoformer(nn.Module):
         self.dropout = config["dropout"]
         self.freq = config["freq"]
 
+        self.activation = config.get("activation", "gelu")
+
         # Initial decomposition used to build decoder inputs
         self.decomp = SeriesDecomp(kernel_size=self.moving_avg)
 
@@ -88,14 +91,15 @@ class Autoformer(nn.Module):
                 d_model=self.d_model,
                 d_ff=self.d_ff,
                 moving_avg=self.moving_avg,
-                dropout=self.dropout
+                dropout=self.dropout,
+                activation=self.activation
             )
 
             encoder_layers.append(encoder_layer)
 
         self.encoder = Encoder(
             encoder_layers=encoder_layers,
-            norm_layer=nn.LayerNorm(self.d_model)
+            norm_layer=MyLayerNorm(self.d_model)
         )
 
         # Decoder
@@ -125,14 +129,15 @@ class Autoformer(nn.Module):
                 c_out=self.c_out,
                 d_ff=self.d_ff,
                 moving_avg=self.moving_avg,
-                dropout=self.dropout
+                dropout=self.dropout,
+                activation=self.activation
             )
 
             decoder_layers.append(decoder_layer)
 
         self.decoder = Decoder(
             decoder_layers=decoder_layers,
-            norm_layer=nn.LayerNorm(self.d_model),
+            norm_layer=MyLayerNorm(self.d_model),
             projection=nn.Linear(self.d_model, self.c_out, bias=True)
         )
 
