@@ -25,6 +25,7 @@ test()
 
 import argparse
 import yaml
+import wandb
 
 from exp.exp_main import ExpMain
 from utils.tools import set_seed
@@ -59,12 +60,22 @@ def main():
 
     config = load_config(args.config)
 
+    if config.get("wandb_enabled", False):
+        wandb.init(
+            project=config["wandb_project"],
+            name=config["wandb_run_name"],
+            config=config
+        )
+
     set_seed(config["seed"])
 
     exp = ExpMain(config)
 
     exp.train()
     exp.test()
+
+    if config.get("wandb_enabled", False):
+        wandb.finish()
 
 
 if __name__ == "__main__":

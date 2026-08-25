@@ -10,6 +10,7 @@ import time
 import torch
 import torch.nn as nn
 import numpy as np
+import wandb
 
 from utils.metrics import metric
 from models.autoformer import Autoformer
@@ -259,6 +260,7 @@ class ExpMain:
                 total_train_loss += loss.item() ### loss media sui batch di training
                 num_batches += 1
                 iter_count += 1
+
                 if (batch_idx + 1) % 100 == 0: ### ogni 100 batch stampiamo la loss media sui batch di training e stimiamo quanto tempo manca alla fine del training
                     print(
                         "\titers: {0}, epoch: {1} | loss: {2:.7f}".format(
@@ -269,12 +271,24 @@ class ExpMain:
                     )
                     speed = (time.time() - time_now) / iter_count
                     left_time = speed * ((train_epochs - epoch) * train_steps + (train_steps - batch_idx - 1))
+                    
                     print(
                         "\tspeed: {:.4f}s/iter; left time: {:.4f}s".format(
                             speed,
                             left_time
                         )
                     )
+
+                    if self.config.get("wandb_enabled", False):
+                        global_step = (epoch - 1) * train_steps + batch_idx + 1
+
+                        wandb.log({
+                            "batch_loss_every_100": loss.item(),
+                            "epoch": epoch,
+                            "batch_idx": batch_idx + 1,
+                            "global_step": global_step,
+                            "learning_rate": self.optimizer.param_groups[0]["lr"]
+                        })
 
                     iter_count = 0
                     time_now = time.time()
@@ -290,6 +304,16 @@ class ExpMain:
                 f"val loss: {val_loss:.6f} | "
                 f"time: {epoch_time:.2f}s"
             )
+
+            # WANDB
+            if self.config.get("wandb_enabled", False):
+                wandb.log({
+                    "epoch": epoch,
+                    "train_loss": train_loss,
+                    "val_loss": val_loss,
+                    "epoch_time": epoch_time,
+                    "learning_rate": self.optimizer.param_groups[0]["lr"]
+                })
 
             early_stopping( ### “guarda la validation loss appena ottenuta; se è la migliore finora, salva il modello”; se la val.loss non migliora per "patience" epoche consecutive, ferma il training
                 val_loss=val_loss,
@@ -392,6 +416,13 @@ class ExpMain:
 
         print(f"Test MSE: {mse_score:.6f}")
         print(f"Test MAE: {mae_score:.6f}")
+
+        # WANDB
+        if self.config.get("wandb_enabled", False):
+            wandb.log({
+                "test_mse": mse_score,
+                "test_mae": mae_score
+            })
 
         results_dir = self.config.get("results_dir", "results") ### chiamo la directory dove salvare i risultati il cui nome è nel config, altrimenti uso "results" come default
         os.makedirs(results_dir, exist_ok=True)

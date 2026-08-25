@@ -239,3 +239,6 @@ checkpoints/*
 ### EXPERIMENT OUTPUTS ###
 results/*
 !results/.gitkeep
+
+### WANDB LOCAL LOGS ###
+wandb/

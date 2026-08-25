@@ -1351,6 +1351,11 @@ L’obiettivo non è solo far funzionare il training, ma capire quali parti dell
   → test di shape passato
 
 - embedding.py: aggiunta l'inizializzazione nn.init.kaiming_normal_() nell'init
+
+- creato timefeatures.py perche era un altra differenza importante: le time features minute, hour, ecc. devo essere create con gli stessi embeddings degli autori!
+
+
+
 ### Note eventuali
 
 La pipeline completa funziona, ma la priorità ora non è ancora migliorare le metriche finali. La priorità è capire quali differenze rispetto agli autori possono spiegare la diversa stabilità del training.

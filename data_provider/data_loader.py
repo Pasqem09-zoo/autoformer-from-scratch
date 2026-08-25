@@ -9,6 +9,7 @@ import torch
 from torch.utils.data import Dataset
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import Dataset, DataLoader
+from utils.timefeatures import time_features
 
 
 class ETTDataset(Dataset):
@@ -90,15 +91,9 @@ class ETTDataset(Dataset):
 
         ### La colonna date nel CSV viene letta inizialmente come testo. Con pd.todate() la trasformiamo in una vera data pandas, così possiamo estrarre mese, giorno, ora, ecc
         df_stamp = df_raw[["date"]].copy()
-        df_stamp["date"] = pd.to_datetime(df_stamp["date"]) ### trasforma in una vera data pandas
-        df_stamp["month"] = df_stamp["date"].dt.month
-        df_stamp["day"] = df_stamp["date"].dt.day
-        df_stamp["weekday"] = df_stamp["date"].dt.weekday
-        df_stamp["hour"] = df_stamp["date"].dt.hour
-        df_stamp["minute"] = df_stamp["date"].dt.minute
-        df_stamp["minute"] = df_stamp["minute"].map(lambda x: x // 15)
+        df_stamp["date"] = pd.to_datetime(df_stamp["date"])  ### trasforma in una vera data pandas
 
-        data_stamp = df_stamp[["month", "day", "weekday", "hour", "minute"]].values
+        data_stamp = time_features(df_stamp["date"].values, freq="t")
 
 
         border1s = { ### è il punto da cui iniziamo a prendere i dati per costruire le finestre di train val e test
