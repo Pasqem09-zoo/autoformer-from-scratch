@@ -2,7 +2,7 @@
 # General setup
 # =============================
 
-experiment_name:  "ettm2_96_lr1e6_noclipping_10epochs"      # name of this experiment
+experiment_name:  "ettm2_96_serverunifi_lr1e6_noclipping_10epochs"      # name of this experiment
 seed: 3097                             # random seed for reproducibility
 
 
@@ -15,7 +15,7 @@ data_path: "data/raw/ETTm2.csv"        # path to the raw csv file
 
 features: "M"                          # "M" = multivariate forecasting
 target: "OT"                           # target column used in ETT datasets
-results_dir: "results/ettm2_96_lr1e6_noclipping_10epochs"       # directory where to save results
+results_dir: "results/ettm2_96_serverunifi_lr1e6_noclipping_10epochs"       # directory where to save results
 
 
 # =============================
@@ -79,7 +79,7 @@ lradj: "type1"                         # learning rate adjustment strategy
 use_grad_clip: false                    # whether to use gradient clipping
 grad_clip: 1.0                         # maximum norm for gradient clipping
 
-checkpoint_dir: "checkpoints/ettm2_96_lr1e6_noclipping_10epochs" # directory where to save best model checkpoint
+checkpoint_dir: "checkpoints/ettm2_96_serverunifi_lr1e6_noclipping_10epochs" # directory where to save best model checkpoint
 
 
 # =============================
@@ -95,6 +95,6 @@ use_cpu: true                          # fallback to CPU if no GPU backend is av
 # Weights & Biases
 # =============================
 
-wandb_enabled: false                    # enable W&B logging, true = log metrics to W&B, false = no logging
+wandb_enabled: true                    # enable W&B logging, true = log metrics to W&B, false = no logging
 wandb_project: "autoformer-from-scratch"
-wandb_run_name: "ettm2_96_lr1e6_noclipping_10epochs"
+wandb_run_name: "ettm2_96_serverunifi_lr1e6_noclipping_10epochs"

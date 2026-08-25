@@ -1354,6 +1354,17 @@ L’obiettivo non è solo far funzionare il training, ma capire quali parti dell
 
 - creato timefeatures.py perche era un altra differenza importante: le time features minute, hour, ecc. devo essere create con gli stessi embeddings degli autori!
 
+- fatto run a 10 epoche e ottenuto un mse migliore di quello degli autori
+
+- ci siamo connessi al server unifi:
+  - le run ci mettono molto meno tempo
+  - la regola per i salvataggi è:
+    1. modifiche fatte su server restano sul server finché non fai git push
+    2. modifiche fatte su Mac restano sul Mac finché non fai git push
+    3. GitHub è il punto centrale che tiene tutto allineato
+  - devi ricordarti che i risultati .txt che si salvano qui poi in locale li devi esportare perche neanche con il commit li ritrovi
+  - provato run con lr = 1e-4 e 5 epoche: la loss sembra rimanere stabile...
+  - siamo connessi con wandb: TODO: sistemare i plot su wandb
 
 
 ### Note eventuali

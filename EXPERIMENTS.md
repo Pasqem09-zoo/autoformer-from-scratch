@@ -422,3 +422,285 @@
     Experiment: ettm2_96_timefeatures_fix_lr1e6_clip_3epochs
     Test MSE: 0.246956
     Test MAE: 0.327919
+
+
+
+---
+
+## Experiment 10 - `ettm2_96_serverunifi_lr1e4_noclipping_5epochs`
+
+**Config**
+
+    learning_rate: 0.0001
+    epochs: 5
+    patience: 2
+    lradj: type1
+    use_grad_clip: false
+    device: cuda
+    checkpoint_dir: checkpoints/ettm2_96_serverunifi_lr1e4_noclipping_5epochs
+    results_dir: results/ettm2_96_serverunifi_lr1e4_noclipping_5epochs
+
+**Main change**
+
+    Diagnostic run on the university server using CUDA and the official Autoformer learning rate.
+
+    This run tests whether the instability previously observed with learning_rate = 0.0001 was mainly related to the MPS backend or to the implementation itself.
+
+**Training**
+
+    Epoch 1/5 | train loss: 0.271248 | val loss: 0.158426
+    Epoch 2/5 | train loss: 0.239331 | val loss: 0.162216
+    Epoch 3/5 | train loss: 0.209984 | val loss: 0.170994
+
+**Best validation loss**
+
+    Best val loss: 0.158426
+    Best epoch: 1
+    Early stopped: true
+
+**Test**
+
+    Test MSE: 0.235195
+    Test MAE: 0.319404
+
+**Saved files**
+
+    checkpoint: checkpoints/ettm2_96_serverunifi_lr1e4_noclipping_5epochs/checkpoint.pth
+    metrics: results/ettm2_96_serverunifi_lr1e4_noclipping_5epochs/metrics.npy
+    predictions: results/ettm2_96_serverunifi_lr1e4_noclipping_5epochs/pred.npy
+    targets: results/ettm2_96_serverunifi_lr1e4_noclipping_5epochs/true.npy
+    summary: results/ettm2_96_serverunifi_lr1e4_noclipping_5epochs/summary.txt
+    loss plot: results/ettm2_96_serverunifi_lr1e4_noclipping_5epochs/loss_curve.png
+
+**Notes**
+
+    This is an important result because the official learning rate no longer explodes on CUDA.
+
+    On MPS, the same learning rate produced unstable training and extremely large losses.
+    On CUDA, instead, the training remains stable and reaches good validation and test performance.
+
+    The best checkpoint is obtained at epoch 1.
+    After that, the training loss continues to decrease, but the validation loss gets worse:
+
+        epoch 1:
+            train loss: 0.271248
+            val loss: 0.158426
+
+        epoch 2:
+            train loss: 0.239331
+            val loss: 0.162216
+
+        epoch 3:
+            train loss: 0.209984
+            val loss: 0.170994
+
+    Early stopping is triggered at epoch 3 because the validation loss does not improve for 2 consecutive epochs.
+
+    Comparison with previous best runs:
+
+        Mac MPS, learning_rate = 0.000001, 10 epochs:
+            Test MSE: 0.243797
+            Test MAE: 0.324120
+
+        Server CUDA, learning_rate = 0.000001, 3 epochs:
+            Test MSE: 0.219496
+            Test MAE: 0.302725
+
+        Server CUDA, learning_rate = 0.0001, 5 epochs with early stopping:
+            Test MSE: 0.235195
+            Test MAE: 0.319404
+
+    This confirms that CUDA gives a much more reliable backend for the official-like configuration.
+    However, for this specific run, learning_rate = 0.0001 is stable but not better than the previous CUDA run with learning_rate = 0.000001.
+
+    The current best result remains:
+
+        Experiment: ettm2_96_serverunifi_txt_lr1e6_noclipping_3epochs
+        Test MSE: 0.219496
+        Test MAE: 0.302725
+
+---
+
+## Experiment 11 - `ettm2_96_serverunifi_lr1e4_noclipping_10epochs`
+
+**Config**
+
+    learning_rate: 0.0001
+    epochs: 10
+    patience: 3
+    lradj: type1
+    use_grad_clip: false
+    device: cuda
+    checkpoint_dir: checkpoints/ettm2_96_serverunifi_lr1e4_noclipping_10epochs
+    results_dir: results/ettm2_96_serverunifi_lr1e4_noclipping_10epochs
+
+**Main change**
+
+    Official-like run on the university server using CUDA.
+
+    This run uses the learning rate adopted by the Autoformer authors, together with batch size 32, early stopping, type1 learning rate adjustment and no gradient clipping.
+
+**Training**
+
+    Epoch 1/10 | train loss: 0.271577 | val loss: 0.156904
+    Epoch 2/10 | train loss: 0.240857 | val loss: 0.159059
+    Epoch 3/10 | train loss: 0.212853 | val loss: 0.164363
+    Epoch 4/10 | train loss: 0.197730 | val loss: 0.157898
+
+**Best validation loss**
+
+    Best val loss: 0.156904
+    Best epoch: 1
+    Early stopped: true
+
+**Test**
+
+    Test MSE: 0.230977
+    Test MAE: 0.316881
+
+**Saved files**
+
+    checkpoint: checkpoints/ettm2_96_serverunifi_lr1e4_noclipping_10epochs/checkpoint.pth
+    metrics: results/ettm2_96_serverunifi_lr1e4_noclipping_10epochs/metrics.npy
+    predictions: results/ettm2_96_serverunifi_lr1e4_noclipping_10epochs/pred.npy
+    targets: results/ettm2_96_serverunifi_lr1e4_noclipping_10epochs/true.npy
+    summary: results/ettm2_96_serverunifi_lr1e4_noclipping_10epochs/summary.txt
+    loss plot: results/ettm2_96_serverunifi_lr1e4_noclipping_10epochs/loss_curve.png
+
+**Notes**
+
+    This is the current official-like reference run for ETTm2 with pred_len = 96.
+
+    The run confirms that learning_rate = 0.0001 is stable on CUDA.
+    This is important because the same learning rate was unstable on MPS.
+
+    The best checkpoint is obtained at epoch 1.
+    After epoch 1, the training loss continues to decrease, but the validation loss does not improve:
+
+        epoch 1:
+            train loss: 0.271577
+            val loss: 0.156904
+
+        epoch 2:
+            train loss: 0.240857
+            val loss: 0.159059
+
+        epoch 3:
+            train loss: 0.212853
+            val loss: 0.164363
+
+        epoch 4:
+            train loss: 0.197730
+            val loss: 0.157898
+
+    Early stopping is triggered at epoch 4 because the validation loss does not improve for 3 consecutive epochs.
+
+    Comparison with previous official-like CUDA run:
+
+        Server CUDA, learning_rate = 0.0001, 5 epochs with patience 2:
+            Test MSE: 0.235195
+            Test MAE: 0.319404
+
+        Server CUDA, learning_rate = 0.0001, 10 epochs with patience 3:
+            Test MSE: 0.230977
+            Test MAE: 0.316881
+
+    The 10-epoch configuration with patience 3 gives a slightly better test result.
+    This run should be used as the official-like result for pred_len = 96.
+
+---
+
+## Current official-like result for ETTm2 96
+
+    Experiment: ettm2_96_serverunifi_lr1e4_noclipping_10epochs
+    Test MSE: 0.230977
+    Test MAE: 0.316881
+
+
+
+---
+
+## Experiment 12 - `ettm2_96_serverunifi_txt_lr1e6_noclipping_3epochs`
+
+**Config**
+
+    learning_rate: 0.000001
+    epochs: 3
+    patience: 2
+    lradj: type1
+    use_grad_clip: false
+    device: cuda
+    checkpoint_dir: checkpoints/ettm2_96_serverunifi_txt_lr1e6_noclipping_3epochs
+    results_dir: results/ettm2_96_serverunifi_txt_lr1e6_noclipping_3epochs
+
+**Main change**
+
+    First stable CUDA run on the university server with corrected time features and a reduced learning rate.
+
+    This run was mainly used to verify that the model, the dataset pipeline, CUDA execution, local result saving and W&B logging were working correctly on the server.
+
+**Training**
+
+    Epoch 1/3 | train loss: 0.384187 | val loss: 0.162175
+    Epoch 2/3 | train loss: 0.312848 | val loss: 0.153215
+    Epoch 3/3 | train loss: 0.298199 | val loss: 0.151331
+
+**Best validation loss**
+
+    Best val loss: 0.151331
+    Best epoch: 3
+    Early stopped: false
+
+**Test**
+
+    Test MSE: 0.219496
+    Test MAE: 0.302725
+
+**Saved files**
+
+    checkpoint: checkpoints/ettm2_96_serverunifi_txt_lr1e6_noclipping_3epochs/checkpoint.pth
+    metrics: results/ettm2_96_serverunifi_txt_lr1e6_noclipping_3epochs/metrics.npy
+    predictions: results/ettm2_96_serverunifi_txt_lr1e6_noclipping_3epochs/pred.npy
+    targets: results/ettm2_96_serverunifi_txt_lr1e6_noclipping_3epochs/true.npy
+    summary: results/ettm2_96_serverunifi_txt_lr1e6_noclipping_3epochs/summary.txt
+    loss plot: results/ettm2_96_serverunifi_txt_lr1e6_noclipping_3epochs/loss_curve.png
+
+**Notes**
+
+    This is an important diagnostic run because it confirms that the full training pipeline works correctly on CUDA.
+
+    Compared to the previous Mac/MPS run with the same reduced learning rate, CUDA gives both faster training and better metrics.
+
+    Comparison with the best previous Mac/MPS run:
+
+        Mac MPS, learning_rate = 0.000001, 10 epochs:
+            Test MSE: 0.243797
+            Test MAE: 0.324120
+
+        Server CUDA, learning_rate = 0.000001, 3 epochs:
+            Test MSE: 0.219496
+            Test MAE: 0.302725
+
+    The validation loss improves at every epoch:
+
+        epoch 1:
+            val loss: 0.162175
+
+        epoch 2:
+            val loss: 0.153215
+
+        epoch 3:
+            val loss: 0.151331
+
+    Early stopping is not triggered.
+    The best checkpoint is obtained at the final epoch.
+
+    Although this run is not official-like because it uses a lower learning rate than the Autoformer authors, it currently gives the best test performance obtained so far for pred_len = 96.
+
+---
+
+## Current best empirical result for ETTm2 96
+
+    Experiment: ettm2_96_serverunifi_txt_lr1e6_noclipping_3epochs
+    Test MSE: 0.219496
+    Test MAE: 0.302725
