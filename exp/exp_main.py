@@ -16,6 +16,7 @@ from utils.metrics import metric
 from models.autoformer import Autoformer
 from data_provider.data_loader import get_data_loader
 from utils.tools import EarlyStopping, adjust_learning_rate
+from utils.experiment_summary import save_experiment_summary
 
 
 class ExpMain:
@@ -42,6 +43,13 @@ class ExpMain:
 
         self.criterion = self._select_criterion()
         self.optimizer = self._select_optimizer()
+
+        self.epoch_history = []
+        self.train_size = None
+        self.val_size = None
+        self.test_size = None
+        self.train_steps = None
+        self.early_stopped = False
 
     def _get_device(self):
         """
@@ -206,6 +214,9 @@ class ExpMain:
 
         train_dataset, train_loader = self._get_data("train") ### otteniamo il dataset e il dataloader per il training
         val_dataset, val_loader = self._get_data("val")
+        self.train_size = len(train_dataset)
+        self.val_size = len(val_dataset)
+        self.train_steps = len(train_loader)
 
         checkpoint_dir = self.config.get("checkpoint_dir", "checkpoints") ### directory dove salvare i pesi del modello. Se non è specificata nel config, usa "checkpoints" come default
         os.makedirs(checkpoint_dir, exist_ok=True)
@@ -216,8 +227,10 @@ class ExpMain:
         )
 
         train_epochs = self.config["epochs"]
-        train_steps = len(train_loader)
-        time_now = time.time()
+        train_steps = self.train_steps
+
+        ### salviamo un file di testo con il riepilogo della configurazione dell'esperimento, le loss per epoca e i risultati finali sul test set
+        self.epoch_history = []
 
         for epoch in range(1, train_epochs + 1): ### questo ciclo fa le epoche di training
             start_time = time.time() ### serve per misurare quanto tempo impiega un'epoca di training
@@ -261,7 +274,7 @@ class ExpMain:
                 num_batches += 1
                 iter_count += 1
 
-                if (batch_idx + 1) % 100 == 0: ### ogni 100 batch stampiamo la loss media sui batch di training e stimiamo quanto tempo manca alla fine del training
+                if (batch_idx + 1) % 100 == 0: ### ogni 100 batch stampiamo la loss dell'ultimo batch e stimiamo quanto tempo manca alla fine del training
                     print(
                         "\titers: {0}, epoch: {1} | loss: {2:.7f}".format(
                             batch_idx + 1,
@@ -305,6 +318,15 @@ class ExpMain:
                 f"time: {epoch_time:.2f}s"
             )
 
+            ### salviamo le informazioni dell'epoca corrente in un dizionario e lo aggiungiamo alla lista epoch_history
+            self.epoch_history.append({
+                "epoch": epoch,
+                "train_loss": train_loss,
+                "val_loss": val_loss,
+                "epoch_time": epoch_time,
+                "learning_rate": self.optimizer.param_groups[0]["lr"]
+            })
+
             # WANDB
             if self.config.get("wandb_enabled", False):
                 wandb.log({
@@ -323,6 +345,7 @@ class ExpMain:
 
             if early_stopping.early_stop:
                 print("Early stopping")
+                self.early_stopped = True
                 break
 
             adjust_learning_rate( ### aggiorna il lr secondo la strategia scelta (type1, type2, ecc)
@@ -368,6 +391,7 @@ class ExpMain:
         """
 
         test_dataset, test_loader = self._get_data("test")
+        self.test_size = len(test_dataset)
 
         if load_checkpoint:
             checkpoint_dir = self.config.get("checkpoint_dir", "checkpoints")
@@ -432,6 +456,19 @@ class ExpMain:
         np.save(
             os.path.join(results_dir, "metrics.npy"),
             np.array([mae_score, mse_score])
+        )
+
+        save_experiment_summary(
+            config=self.config,
+            epoch_history=self.epoch_history,
+            mae_score=mae_score,
+            mse_score=mse_score,
+            device=self.device,
+            train_size=self.train_size,
+            val_size=self.val_size,
+            test_size=self.test_size,
+            train_steps=self.train_steps,
+            early_stopped=self.early_stopped
         )
 
         return mae_score, mse_score

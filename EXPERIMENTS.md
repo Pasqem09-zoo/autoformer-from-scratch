@@ -276,3 +276,149 @@
     Experiment: ettm2_96_timefeatures_fix_lr1e6_clip_3epochs
     Test MSE: 0.246956
     Test MAE: 0.327919
+
+
+
+---
+
+## Experiment 7 - `ettm2_96_timefeatures_fix_lr1e6_NOclip_3epochs`
+
+**Config**
+
+    learning_rate: 0.000001
+    epochs: 3
+    patience: 2
+    lradj: type1
+    use_grad_clip: false
+    checkpoint_dir: checkpoints/ettm2_96_timefeatures_fix_lr1e6_NOclip_3epochs
+    results_dir: results/ettm2_96_timefeatures_fix_lr1e6_NOclip_3epochs
+
+**Main change**
+
+    Same configuration as the previous time feature fix experiment, but without gradient clipping.
+
+**Training**
+
+    Epoch 1/3 | train loss: 0.390391 | val loss: 0.176535
+    Epoch 2/3 | train loss: 0.322860 | val loss: 0.179653
+    Epoch 3/3 | train loss: 0.309482 | val loss: 0.178263
+
+**Best validation loss**
+
+    Best val loss: 0.176535
+    Best epoch: 1
+
+**Test**
+
+    Test MSE: 0.249890
+    Test MAE: 0.339192
+
+**Saved files**
+
+    checkpoint: checkpoints/ettm2_96_timefeatures_fix_lr1e6_NOclip_3epochs/checkpoint.pth
+    metrics: results/ettm2_96_timefeatures_fix_lr1e6_NOclip_3epochs/metrics.npy
+    predictions: results/ettm2_96_timefeatures_fix_lr1e6_NOclip_3epochs/pred.npy
+    targets: results/ettm2_96_timefeatures_fix_lr1e6_NOclip_3epochs/true.npy
+
+**Notes**
+
+    Stable run without gradient clipping after fixing the time feature encoding.
+    The result is very close to the clipped version, showing that after the time feature fix the model no longer depends strongly on gradient clipping.
+
+    Comparison with clipped run:
+
+        Time feature fix, with clipping:
+            Test MSE: 0.246956
+            Test MAE: 0.327919
+
+        Time feature fix, without clipping:
+            Test MSE: 0.249890
+            Test MAE: 0.339192
+
+    This suggests that the main issue was the time feature encoding, not the absence of gradient clipping.
+
+---
+
+## Current best result
+
+    Experiment: ettm2_96_timefeatures_fix_lr1e6_clip_3epochs
+    Test MSE: 0.246956
+    Test MAE: 0.327919
+
+
+
+---
+
+## Experiment 8 - `ettm2_96_timefeatures_fix_lr1e4_no_clip_3epochs`
+
+**Config**
+
+    learning_rate: 0.0001
+    epochs: 3
+    patience: 2
+    lradj: type1
+    use_grad_clip: false
+    checkpoint_dir: checkpoints/ettm2_96_timefeatures_fix_lr1e4_no_clip_3epochs
+    results_dir: results/ettm2_96_timefeatures_fix_lr1e4_no_clip_3epochs
+
+**Main change**
+
+    Same corrected time feature encoding as the previous experiments, but using the official learning rate 1e-4 without gradient clipping.
+
+**Training**
+
+    Epoch 1/3 | train loss: 16303178.926811 | val loss: 175882228.974790
+    Epoch 2/3 | train loss: 2032609703549.020508 | val loss: 1179970889814.050537
+
+**Interrupted epoch**
+
+    Epoch 3 was manually interrupted because the loss was clearly exploding.
+
+    Example batch losses during epoch 3:
+
+        iters: 100 | loss: 8884006682624.0000000
+        iters: 200 | loss: 10001548574720.0000000
+        iters: 300 | loss: 12196333486080.0000000
+        iters: 400 | loss: 14495031230464.0000000
+        iters: 500 | loss: 19682358722560.0000000
+
+**Test**
+
+    No final test was executed because the run was interrupted.
+
+**Notes**
+
+    Unstable run.
+    Even after fixing the time feature encoding, the official learning rate 1e-4 without gradient clipping causes the training loss to explode.
+
+    The first batches of epoch 1 were initially reasonable:
+
+        iters: 100 | loss: 0.2599852
+        iters: 200 | loss: 0.2624408
+        iters: 300 | loss: 0.1747247
+
+    However, the loss started exploding within the same epoch:
+
+        iters: 500 | loss: 36865.0351562
+        iters: 700 | loss: 800670.3750000
+        iters: 900 | loss: 349901248.0000000
+
+    This confirms that the time feature fix solved the main data encoding issue, but learning rate 1e-4 remains numerically unstable in this reimplementation when gradient clipping is disabled.
+
+    Comparison with stable no-clipping run:
+
+        lr = 1e-6, no clipping:
+            Test MSE: 0.249890
+            Test MAE: 0.339192
+
+        lr = 1e-4, no clipping:
+            Training diverged.
+            No valid test metrics.
+
+---
+
+## Current best result
+
+    Experiment: ettm2_96_timefeatures_fix_lr1e6_clip_3epochs
+    Test MSE: 0.246956
+    Test MAE: 0.327919
