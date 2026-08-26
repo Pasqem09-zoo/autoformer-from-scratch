@@ -127,8 +127,8 @@ class ExpMain:
             features=self.config["features"],
             target=self.config["target"],
             batch_size=self.config["batch_size"],
-            shuffle=shuffle,
-            scale=True
+            dataset=self.config["dataset"],
+            freq=self.config["freq"]
         )
 
         print(f"{flag} dataset size: {len(dataset)}")
@@ -293,15 +293,11 @@ class ExpMain:
                     )
 
                     if self.config.get("wandb_enabled", False):
-                        global_step = (epoch - 1) * train_steps + batch_idx + 1
-
                         wandb.log({
-                            "batch_loss_every_100": loss.item(),
-                            "epoch": epoch,
-                            "batch_idx": batch_idx + 1,
-                            "global_step": global_step,
-                            "learning_rate": self.optimizer.param_groups[0]["lr"]
+                            "batch_loss_every_100": loss.item()
                         })
+
+
 
                     iter_count = 0
                     time_now = time.time()
@@ -330,11 +326,12 @@ class ExpMain:
             # WANDB
             if self.config.get("wandb_enabled", False):
                 wandb.log({
-                    "epoch": epoch,
-                    "train_loss": train_loss,
-                    "val_loss": val_loss,
-                    "epoch_time": epoch_time,
-                    "learning_rate": self.optimizer.param_groups[0]["lr"]
+                        "epoch": epoch,
+                        "epoch_value": epoch,
+                        "train_loss": train_loss,
+                        "val_loss": val_loss,
+                        "epoch_time": epoch_time,
+                        "learning_rate": self.optimizer.param_groups[0]["lr"]
                 })
 
             early_stopping( ### “guarda la validation loss appena ottenuta; se è la migliore finora, salva il modello”; se la val.loss non migliora per "patience" epoche consecutive, ferma il training

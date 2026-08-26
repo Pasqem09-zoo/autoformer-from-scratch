@@ -232,6 +232,9 @@ env/
 ### DATASETS ###
 data/raw/*.csv
 
+### RAW DATASETS ###
+data/raw/
+
 ### MODEL CHECKPOINTS ###
 checkpoints/*
 !checkpoints/.gitkeep
@@ -242,3 +245,6 @@ results/*
 
 ### WANDB LOCAL LOGS ###
 wandb/
+
+old_runs_before_wandb_fix/
+old_runs_before_wandb_fix/

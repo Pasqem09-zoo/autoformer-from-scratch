@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import torch
 
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import Dataset, DataLoader
 from utils.timefeatures import time_features
@@ -78,8 +78,8 @@ class ETTDataset(Dataset):
         ### ETTm2 is sampled every 15 minutes, so there are 4 observations per hour.
         ### train = 12 months, validation = 4 months, test = 4 months
         num_train = 12 * 30 * 24 * 4 ### 12 mesi × 30 giorni × 24 ore × 4 punti per ora
-        num_val = 4 * 30 * 24 * 4
-        num_test = 4 * 30 * 24 * 4
+        num_val = 4 * 30 * 24 * 4 ### 4 mesi × 30 giorni × 24 ore × 4 punti per ora
+        num_test = 4 * 30 * 24 * 4 ### 4 mesi × 30 giorni × 24 ore × 4 punti per ora
 
 
         ### per ogni variabile (colonna) calcola media e sd e normalizza tutti i dati (train,test e valid) per avere tutto sulla stessa scala
@@ -202,6 +202,133 @@ class ETTDataset(Dataset):
 
 
 
+class CustomDataset(Dataset):
+    """
+    Dataset class for non-ETT datasets such as Electricity, Traffic and Weather.
+
+    This class follows the official Autoformer split:
+        70% train
+        10% validation
+        20% test
+    """
+
+    def __init__(
+        self,
+        data_path,
+        flag,
+        seq_len,
+        label_len,
+        pred_len,
+        features="M",
+        target="OT",
+        scale=True,
+        freq="h"
+    ):
+        super().__init__()
+
+        assert flag in ["train", "val", "test"]
+
+        self.data_path = data_path
+        self.flag = flag
+
+        self.seq_len = seq_len
+        self.label_len = label_len
+        self.pred_len = pred_len
+
+        self.features = features
+        self.target = target
+        self.scale = scale
+        self.freq = freq
+
+        self.scaler = StandardScaler()
+
+        self.__read_data__()
+
+    def __read_data__(self):
+        df_raw = pd.read_csv(self.data_path)
+
+        # The dataframe must contain a date column.
+        # The target column is moved to the end, as in the official implementation.
+        cols = list(df_raw.columns)
+        cols.remove("date")
+        cols.remove(self.target)
+
+        df_raw = df_raw[["date"] + cols + [self.target]]
+
+        num_train = int(len(df_raw) * 0.7)
+        num_test = int(len(df_raw) * 0.2)
+        num_val = len(df_raw) - num_train - num_test
+
+        border1s = [
+            0,
+            num_train - self.seq_len,
+            len(df_raw) - num_test - self.seq_len
+        ]
+
+        border2s = [
+            num_train,
+            num_train + num_val,
+            len(df_raw)
+        ]
+
+        if self.flag == "train":
+            set_type = 0
+        elif self.flag == "val":
+            set_type = 1
+        else:
+            set_type = 2
+
+        border1 = border1s[set_type]
+        border2 = border2s[set_type]
+
+        if self.features == "M" or self.features == "MS":
+            cols_data = df_raw.columns[1:]
+            df_data = df_raw[cols_data]
+        elif self.features == "S":
+            df_data = df_raw[[self.target]]
+        else:
+            raise ValueError("features must be one of: S, M, MS")
+
+        if self.scale:
+            train_data = df_data.iloc[border1s[0]:border2s[0]]
+            self.scaler.fit(train_data.values)
+            data = self.scaler.transform(df_data.values)
+        else:
+            data = df_data.values
+
+        df_stamp = df_raw[["date"]].iloc[border1:border2].copy()
+        df_stamp["date"] = pd.to_datetime(df_stamp["date"])
+
+        data_stamp = time_features(df_stamp["date"].values, freq=self.freq)
+
+        self.data_x = data[border1:border2].astype("float32")
+        self.data_y = data[border1:border2].astype("float32")
+        self.data_stamp = data_stamp.astype("float32")
+
+    def __getitem__(self, index):
+        s_begin = index
+        s_end = s_begin + self.seq_len
+
+        r_begin = s_end - self.label_len
+        r_end = r_begin + self.label_len + self.pred_len
+
+        seq_x = self.data_x[s_begin:s_end]
+        seq_y = self.data_y[r_begin:r_end]
+
+        seq_x_mark = self.data_stamp[s_begin:s_end]
+        seq_y_mark = self.data_stamp[r_begin:r_end]
+
+        return seq_x, seq_y, seq_x_mark, seq_y_mark
+
+    def __len__(self):
+        return len(self.data_x) - self.seq_len - self.pred_len + 1
+
+    def inverse_transform(self, data):
+        return self.scaler.inverse_transform(data)
+
+
+
+
 def get_data_loader(
     data_path,
     flag,
@@ -210,30 +337,55 @@ def get_data_loader(
     pred_len,
     features,
     target,
-    batch_size, ### quante finestre voglio prendere in un batch
-    shuffle=True, ### nel training voglio mischiare le finestre, nel test e validation no perché voglio vedere come il modello si comporta su finestre consecutive della serie temporale
+    batch_size,
+    dataset="ETTm2",
+    freq="h",
     scale=True
 ):
     """
-    Create Dataset and DataLoader for ETT data.
+    Create dataset and dataloader.
+
+    This function supports both ETTm2 and custom datasets.
     """
 
-    dataset = ETTDataset(
-        data_path=data_path,
-        flag=flag,
-        seq_len=seq_len,
-        label_len=label_len,
-        pred_len=pred_len,
-        features=features,
-        target=target,
-        scale=scale
-    )
+    dataset_name = dataset.lower()
+
+    if dataset_name == "ettm2":
+        dataset = ETTDataset(
+            data_path=data_path,
+            flag=flag,
+            seq_len=seq_len,
+            label_len=label_len,
+            pred_len=pred_len,
+            features=features,
+            target=target,
+            scale=scale
+        )
+
+    elif dataset_name in ["electricity", "traffic", "weather", "ili"]:
+        dataset = CustomDataset(
+            data_path=data_path,
+            flag=flag,
+            seq_len=seq_len,
+            label_len=label_len,
+            pred_len=pred_len,
+            features=features,
+            target=target,
+            scale=scale,
+            freq=freq
+        )
+
+    else:
+        raise ValueError(f"Unknown dataset: {dataset}")
+
+    shuffle_flag = True if flag == "train" else False
 
     data_loader = DataLoader(
         dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        drop_last=True ### se l ultimo batch non è completo (cioè non contiene batch_size finestre) lo scarta. Serve per evitare problemi con il batchnorm
+        batch_size=batch_size, ### quante finestre voglio prendere in un batch
+        shuffle=shuffle_flag, ### nel training voglio mischiare le finestre, nel test e validation no perché voglio vedere come il modello si comporta su finestre consecutive della serie temporale
+        num_workers=0,
+        drop_last=True  ### se l ultimo batch non è completo (cioè non contiene batch_size finestre) lo scarta. Serve per evitare problemi con il batchnorm
     )
 
     return dataset, data_loader

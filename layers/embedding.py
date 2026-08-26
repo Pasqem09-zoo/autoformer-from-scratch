@@ -85,8 +85,10 @@ class TimeFeatureEmbedding(nn.Module):
         super().__init__()
 
         freq_map = {
-            "h": 4,  # hourly data
-            "t": 5,  # minutely data
+            "h": 4,
+            "t": 5,
+            "min": 5,
+            "15min": 5, ### per il dataset electricity, che ha frequenza 15min, usiamo 5 features temporali: month, day, weekday, hour of day, minute of hour
             "s": 6,
             "m": 1,
             "a": 1,

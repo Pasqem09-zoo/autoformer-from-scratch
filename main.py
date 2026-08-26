@@ -67,6 +67,20 @@ def main():
             config=config
         )
 
+        wandb.define_metric("epoch", hidden=True)
+        wandb.define_metric("epoch_progress", hidden=True)
+
+        wandb.define_metric("train_loss", step_metric="epoch")
+        wandb.define_metric("val_loss", step_metric="epoch")
+        wandb.define_metric("epoch_time", step_metric="epoch")
+        wandb.define_metric("learning_rate", step_metric="epoch")
+        wandb.define_metric("epoch_value", step_metric="epoch")
+
+        wandb.define_metric("batch_loss_every_100", step_metric="epoch_progress")
+
+        wandb.define_metric("test_mse")
+        wandb.define_metric("test_mae")
+
     set_seed(config["seed"])
 
     exp = ExpMain(config)
