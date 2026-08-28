@@ -2,7 +2,7 @@
 # Experiment
 # =============================
 
-experiment_name: "weather_336_lr1e4_10epochs"
+experiment_name: "weather_336_lr1e4_2epochs_freqh"
 seed: 3097
 
 
@@ -15,7 +15,7 @@ data_path: "data/raw/weather/weather.csv"        # path to the raw csv file
 
 features: "M"                          # "M" = multivariate forecasting
 target: "OT"                           # target column used in ETT datasets
-results_dir: "results/weather_336_lr1e4_10epochs"       # directory where to save results
+results_dir: "results/weather_336_lr1e4_2epochs_freqh"       # directory where to save results
 
 
 # =============================
@@ -63,7 +63,7 @@ c_out: 21                             # number of output variables
 # =============================
 
 embed: "timeF"                         # use numerical time features
-freq: "t"                              # time frequency: "t" = minutely/15-min features for ETTm2, other datasets are used to use "h" = hourly features
+freq: "h"                              # time frequency: "t" = minutely/15-min features for ETTm2, other datasets are used to use "h" = hourly features
 
 
 # =============================
@@ -72,14 +72,14 @@ freq: "t"                              # time frequency: "t" = minutely/15-min f
 
 batch_size: 32                         # number of samples per batch
 learning_rate: 0.0001                 # optimizer learning rate, lr = 1e-4 official
-epochs: 10                             # maximum number of training epochs
+epochs: 2                             # maximum number of training epochs
 patience: 3                            # early stopping patience
 lradj: "type1"                         # learning rate adjustment strategy
 
 use_grad_clip: false                    # whether to use gradient clipping
 grad_clip: 1.0                         # maximum norm for gradient clipping
 
-checkpoint_dir: "checkpoints/weather_336_lr1e4_10epochs" # directory where to save best model checkpoint
+checkpoint_dir: "checkpoints/weather_336_lr1e4_2epochs_freqh" # directory where to save best model checkpoint
 
 
 # =============================
@@ -97,4 +97,4 @@ use_cpu: true                          # fallback to CPU if no GPU backend is av
 
 wandb_enabled: true                    # enable W&B logging, true = log metrics to W&B, false = no logging
 wandb_project: "autoformer-from-scratch"
-wandb_run_name: "weather_336"
+wandb_run_name: "weather_336_2epochs_freqh"

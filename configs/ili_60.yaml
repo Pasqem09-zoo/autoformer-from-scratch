@@ -2,7 +2,7 @@
 # General setup
 # =============================
 
-experiment_name:  "ili_60_lr1e4_10epochs"      # name of this experiment
+experiment_name:  "ili_60_lr1e4_10epochs_freqh"      # name of this experiment
 seed: 3097                             # random seed for reproducibility
 
 
@@ -15,7 +15,7 @@ data_path: "data/raw/illness/national_illness.csv"       # path to the raw csv f
 
 features: "M"                          # "M" = multivariate forecasting
 target: "OT"                           # target column used in ETT datasets
-results_dir: "results/ili_60_lr1e4_10epochs"       # directory where to save results
+results_dir: "results/ili_60_lr1e4_10epochs_freqh"       # directory where to save results
 
 
 # =============================
@@ -63,7 +63,7 @@ c_out: 7                               # number of output variables
 # =============================
 
 embed: "timeF"                         # use numerical time features
-freq: "w"                              # time frequency: "t" = minutely/15-min features for ETTm2, other datasets are used to use "h" = hourly features
+freq: "h"                              # time frequency: "t" = minutely/15-min features for ETTm2, other datasets are used to use "h" = hourly features
 
 
 # =============================
@@ -79,7 +79,7 @@ lradj: "type1"                         # learning rate adjustment strategy
 use_grad_clip: false                    # whether to use gradient clipping
 grad_clip: 1.0                         # maximum norm for gradient clipping
 
-checkpoint_dir: "checkpoints/ili_60_lr1e4_10epochs" # directory where to save best model checkpoint
+checkpoint_dir: "checkpoints/ili_60_lr1e4_10epochs_freqh" # directory where to save best model checkpoint
 
 
 # =============================
@@ -97,4 +97,4 @@ use_cpu: true                          # fallback to CPU if no GPU backend is av
 
 wandb_enabled: true                    # enable W&B logging, true = log metrics to W&B, false = no logging
 wandb_project: "autoformer-from-scratch"
-wandb_run_name: "ili_60"
+wandb_run_name: "ili_60_10epochs_freqh"

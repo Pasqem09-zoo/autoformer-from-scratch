@@ -6,7 +6,7 @@ Reimplementare from scratch l'architettura Autoformer per long-term time series 
 
 **Autoformer: Decomposition Transformers with Auto-Correlation for Long-Term Series Forecasting**
 
-L'obiettivo è costruire una implementazione pulita, comprensibile e il più possibile fedele al paper, con risultati sperimentali confrontabili su alcuni dataset selezionati.
+L'obiettivo è costruire una implementazione pulita, comprensibile e il più possibile fedele al paper, con risultati sperimentali confrontab***ili*** su alcuni dataset selezionati.
 
 ---
 
@@ -221,7 +221,7 @@ L'obiettivo non è necessariamente completarlo tutto oggi, ma capire bene la str
 
 - in time_delay_aggregation() abbiamo cambiato una cosa dopo aver visto il codice degli autori.
 Prima: stessi lag + stessi pesi per tutti gli elementi del batch (facevamo una sola media sugli istanti temporali).  
-Versione più fedele agli autori: stessi lag + pesi batch-specific. ora diamo non solo un peso diverso ad ogni lag ma anche diverso tra le serie dentro il batch! i lag scelti sono gli stessi per tutto il batch ma i pesi cambiano tra le `B` serie. durante il training vogliono una versione veloce: scelgono pochi lag globali condivisi, così non esplode il costo computazionale. Però lasciano comunque un po’ di flessibilità: ogni serie del batch può dire “ok, i lag sono questi, ma per me il lag 24 conta più del lag 48”.
+Versione più fedele agli autori: stessi lag + pesi batch-specific. ora diamo non solo un peso diverso ad ogni lag ma anche diverso tra le serie dentro il batch! i lag scelti sono gli stessi per tutto il batch ma i pesi cambiano tra le `B` serie. durante il training vogliono una versione veloce: scelgono pochi lag globali condivisi, così non esplode il costo computazionale. Però lasciano comunque un po’ di flessib***ili***tà: ogni serie del batch può dire “ok, i lag sono questi, ma per me il lag 24 conta più del lag 48”.
 
 
 ----
@@ -340,7 +340,7 @@ Concettualmente:
 
 `corr = inverse_FFT(q_fft * conjugate(k_fft))`
 
-La dimensione temporale di `corr` rappresenta i possibili ritardi della serie.
+La dimensione temporale di `corr` rappresenta i possib***ili*** ritardi della serie.
 
 Dopo aver calcolato `corr`, Autoformer seleziona solo i ritardi più importanti usando `topk`.
 
@@ -354,7 +354,7 @@ dove:
 - `factor` è un iperparametro;
 - `top_k` è il numero di ritardi selezionati.
 
-Quindi Autoformer non usa tutti i lag possibili, ma solo quelli più rilevanti.
+Quindi Autoformer non usa tutti i lag possib***ili***, ma solo quelli più rilevanti.
 
 La logica è:
 
@@ -498,7 +498,7 @@ L’obiettivo principale di oggi è rendere il decoder testabile e iniziare a co
 ### Cose da fare
 - TODO: GLI AUTORI USANO argomenti x_mask e cross_mask. Noi per ora non usiamo maschere, coerente con una prima versione pulita.
 - TODO: GLI AUTORI usano relu o gelu.
-- TODO: gli autori usano `my_Layernorm` mentre io `nn.LayerNorm`. in futuro per essere più fedeli al codice ufficiale, più avanti possiamo implementare MyLayerNorm in encoder.py o in un file utility. Non è urgente per il forward test, però per riproduzione risultati potrebbe contare.
+- TODO: gli autori usano `my_Layernorm` mentre io `nn.LayerNorm`. in futuro per essere più fedeli al codice ufficiale, più avanti possiamo implementare MyLayerNorm in encoder.py o in un file ut***ili***ty. Non è urgente per il forward test, però per riproduzione risultati potrebbe contare.
 
 
 ### Fatto
@@ -638,7 +638,7 @@ L’obiettivo minimo della sessione è iniziare `data_provider/data_loader.py` e
 - Abbiamo lavorato su `data_provider/data_loader.py`, costruendo la struttura principale della classe `ETTDataset`. La classe ora contiene:
   - `__init__`, per salvare i parametri principali;
   - `_read_data()`, per leggere il CSV, selezionare le colonne, fare split temporale, normalizzazione e time features;
-  - `__len__`, per calcolare quante sliding windows sono disponibili;
+  - `__len__`, per calcolare quante sliding windows sono disponib***ili***;
   - `__getitem__`, per costruire una singola finestra temporale;
   - `get_data_loader()`, per creare Dataset e DataLoader PyTorch.
 - Abbiamo chiarito anche che lo `StandardScaler` deve fare `fit` solo sul training set, ma poi la trasformazione va applicata a tutto il dataset usando le statistiche del train.
@@ -674,7 +674,7 @@ Dove:
 - `32` è il numero di esempi nel batch;
 - `96` è la lunghezza del passato o del futuro da predire;
 - `144` è la lunghezza del decoder, cioè `label_len + pred_len`;
-- `7` è il numero di variabili della serie;
+- `7` è il numero di variab***ili*** della serie;
 - `5` è il numero di feature temporali.
 
 Il **Dataset** definisce come costruire un singolo esempio. Nel nostro caso dovrà prendere una porzione della serie temporale e costruire:
@@ -1054,7 +1054,7 @@ CSV reale
 → output
 ```
 
-Il test verrà eseguito sul device disponibile, quindi nel nostro caso probabilmente su **MPS**, usando la GPU Apple Silicon del Mac.
+Il test verrà eseguito sul device disponibile, quindi nel nostro caso probabilmente su **MPS**, usando la GPU Apple S***ili***con del Mac.
 
 La cosa principale da verificare è che l’output del modello abbia la stessa shape del target `y`:
 
@@ -1163,7 +1163,7 @@ Prima di lanciare un vero esperimento con W&B, vogliamo quindi completare i file
 
 - Decidere se tenere il gradient clipping.
 
-    Il gradient clipping non sembra presente esplicitamente nel codice ufficiale, ma nei nostri test può essere utile per stabilizzare il training.
+    Il gradient clipping non sembra presente esplicitamente nel codice ufficiale, ma nei nostri test può essere utile per stab***ili***zzare il training.
 
     Dovremo quindi annotare chiaramente se lo usiamo come modifica pratica rispetto all’implementazione degli autori.
 
@@ -1282,7 +1282,7 @@ Prima di lanciare un vero esperimento con W&B, vogliamo quindi completare i file
 
 Rendere la nostra reimplementazione di Autoformer più fedele possibile al codice degli autori, analizzando e correggendo le principali differenze ancora presenti tra la nostra versione e quella ufficiale.
 
-L’obiettivo non è solo far funzionare il training, ma capire quali parti della nostra implementazione possono influenzare stabilità e risultati, così da avvicinarci progressivamente al comportamento riportato nel paper.
+L’obiettivo non è solo far funzionare il training, ma capire quali parti della nostra implementazione possono influenzare stab***ili***tà e risultati, così da avvicinarci progressivamente al comportamento riportato nel paper.
 
 ### Cose da fare
 
@@ -1298,7 +1298,7 @@ L’obiettivo non è solo far funzionare il training, ma capire quali parti dell
 - Se la run fedele risulta instabile, preparare run diagnostiche:
   - learning rate più basso;
   - con e senza gradient clipping;
-  - confronto tra configurazioni più stabili e configurazioni più fedeli agli autori.
+  - confronto tra configurazioni più stab***ili*** e configurazioni più fedeli agli autori.
 
 ### Cose fatte
 
@@ -1369,7 +1369,7 @@ L’obiettivo non è solo far funzionare il training, ma capire quali parti dell
 
 ### Note eventuali
 
-La pipeline completa funziona, ma la priorità ora non è ancora migliorare le metriche finali. La priorità è capire quali differenze rispetto agli autori possono spiegare la diversa stabilità del training.
+La pipeline completa funziona, ma la priorità ora non è ancora migliorare le metriche finali. La priorità è capire quali differenze rispetto agli autori possono spiegare la diversa stab***ili***tà del training.
 
 Le differenze più importanti da analizzare sono probabilmente `my_Layernorm` e i dettagli della time-delay aggregation nell’Auto-Correlation. Solo dopo aver sistemato queste parti ha senso provare una run davvero fedele agli autori con learning rate `0.0001` e senza gradient clipping.
 
@@ -1421,3 +1421,60 @@ validation:  delay specifici per ogni esempio,
 test:        delay specifici per ogni esempio.  
 
 Quindi sì: se vogliamo essere più fedeli agli autori, prima o poi quella funzione va aggiunta.
+
+
+
+---
+
+## 2026-08-28
+
+### cose fatte
+
+  - Abbiamo capito che i config non possono essere tutti trattati come ETTm2. In particolare, ETTm2 era rimasto con fattore di Auto-Correlation topk:
+  
+    ```text
+      c=1
+    ```
+
+   mentre per i dataset custom degli autori il parametro corretto è 3.
+
+- Abbiamo individuato che nei config di ***Electricity*** il parametro c era rimasto a 1. Questo era probabilmente uno dei motivi principali per cui Electricity, soprattutto a pred_len 720, dava risultati molto peggiori degli autori. Dagli script ufficiali risulta infatti che Electricity usa factor 3 per tutti gli orizzonti: 96, 192, 336 e 720. Abbiamo deciso che tutti i config Electricity vanno rifatti con c: 3 e factor: 3. 
+
+- Abbiamo spostato i vecchi risultati e checkpoint Electricity con c uguale a 1 nello scatolone old_runs_before_wandb_fix, dentro una sottocartella dedicata agli esperimenti Electricity con fattore sbagliato. In questo modo non abbiamo cancellato nulla, ma abbiamo separato le run vecchie da quelle nuove corrette.
+
+- Abbiamo verificato che anche ***Exchange*** usa factor 3 negli script ufficiali per tutti gli orizzonti: 96, 192, 336 e 720. Quindi anche i config Exchange devono avere c: 3 e factor: 3.
+
+- Abbiamo notato una particolarità importante di ***Exchange*** : negli script ufficiali gli orizzonti 192 e 336 vengono lanciati con una sola epoca di training. Questo è diverso dal setup standard a 10 epoche. Abbiamo discusso che early stopping non risolve necessariamente questo problema, perché sceglie il checkpoint migliore sulla validation, ma se validation e test non sono perfettamente rappresentativi può comunque scegliere un checkpoint che non generalizza bene sul test.
+
+    - oss. In pratica: early stopping ottimizza validation, non test. Se validation non è rappresentativa del test, scegliere la migliore validation può comunque peggiorare il test. Nel tuo caso la differenza tra epoca 1 e 2 è minuscola:
+
+      epoch 1 val_loss: 0.451538,  
+      epoch 2 val_loss: 0.449980.  
+
+      Quindi early stopping sceglie epoca 2, ma magari sul test epoca 1 era meglio. La validation migliora di pochissimo, praticamente niente, mentre il test potrebbe peggiorare parecchio.   
+      Se epochs: 1 fa molto meglio, allora abbiamo capito perché gli autori l’hanno fissato a 1: non è perché manca early stopping, ma perché su ***Exchange*** il validation split non è abbastanza affidabile per scegliere tra epoca 1 e 2. Quindi sì: early stopping non è inutile, ma su dataset piccoli/non stazionari può scegliere il checkpoint “migliore per validation” e non “migliore per test”.
+
+  Abbiamo quindi segnato che, per una replica più fedele, Exchange dovrebbe essere configurato così: 96 con 10 epoche, 192 con 1 epoca, 336 con 1 epoca, 720 con 10 epoche.
+
+- Abbiamo verificato che ***Weather*** usa anch’esso factor 3 per tutti gli orizzonti. Quindi anche i config ***Weather*** devono avere c: 3 e factor: 3.
+
+- Abbiamo notato una particolarità di ***Weather***: nello script ufficiale solo ***Weather*** 96 specifica train_epochs 2. Gli altri orizzonti, cioè 192, 336 e 720, non specificano train_epochs e quindi usano il valore di default, cioè 10 epoche. Quindi ***Weather*** 96 va configurato con 2 epoche, mentre ***Weather*** 192, 336 e 720 con 10 epoche.
+
+- Abbiamo individuato un possibile problema legato alla frequenza temporale nei config ***Weather***. Noi avevamo usato freq: t perché il dataset ha timestamp ogni 10 minuti, ma negli script ufficiali non viene passato esplicitamente il parametro freq. Quindi il codice degli autori usa il default, molto probabilmente freq: h. Per replicare più fedelmente gli autori, ***Weather*** andrebbe quindi provato con freq: h, non freq: t.
+
+- Abbiamo esteso lo stesso ragionamento anche a Exchange: anche lì nello script ufficiale non viene passato freq, quindi per una replica stretta potrebbe essere più coerente usare freq: h invece di freq: d. Questa cosa è da tenere presente perché cambia le time features date al modello. ma in questo dataset i risultati non cambiano per niente!!!
+
+- Abbiamo analizzato ***ILI*** e visto che è un dataset diverso dagli altri. Non usa gli orizzonti 96, 192, 336 e 720, ma usa seq_len 36, label_len 18 e pred_len 24, 36, 48, 60.
+Abbiamo verificato il CSV ***ILI***: contiene 966 righe e 7 variabili più la colonna date. Quindi i config ***ILI*** devono usare enc_in: 7, dec_in: 7 e c_out: 7.
+
+- Abbiamo visto dagli script ufficiali che anche ***ILI*** usa factor 3 per tutti gli orizzonti. Quindi anche ***ILI*** deve avere c: 3 e factor: 3.
+Abbiamo deciso che i config ***ILI*** devono essere ***ili***_24, ***ili***_36, ***ili***_48 e ***ili***_60. ***ILI*** è settimanale e molto più corto, quindi va trattato come un caso specifico.
+
+- Abbiamo mantenuto save_predictions: false nei config, perché salvare pred.npy e true.npy per dataset grandi può occupare troppo spazio e far crashare il codice prima della creazione di summary.txt e loss_curve.png.
+
+- In generale, la modifica più importante emersa tra ieri e oggi è che i config devono seguire gli script ufficiali dataset per dataset. Non basta cambiare solo data_path, enc_in, dec_in e c_out: anche factor, numero di epoche, frequenza temporale e orizzonti cambiano a seconda del dataset.
+
+
+
+
+
