@@ -89,6 +89,7 @@ class TimeFeatureEmbedding(nn.Module):
             "t": 5,
             "min": 5,
             "15min": 5, ### per il dataset electricity, che ha frequenza 15min, usiamo 5 features temporali: month, day, weekday, hour of day, minute of hour
+            "10min": 5,
             "s": 6,
             "m": 1,
             "a": 1,

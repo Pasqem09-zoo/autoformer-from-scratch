@@ -67,8 +67,8 @@ def main():
             config=config
         )
 
-        wandb.define_metric("epoch", hidden=True)
-        wandb.define_metric("epoch_progress", hidden=True)
+        wandb.define_metric("epoch")
+        wandb.define_metric("epoch_progress")
 
         wandb.define_metric("train_loss", step_metric="epoch")
         wandb.define_metric("val_loss", step_metric="epoch")

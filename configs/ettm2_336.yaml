@@ -97,4 +97,4 @@ use_cpu: true                          # fallback to CPU if no GPU backend is av
 
 wandb_enabled: true                    # enable W&B logging, true = log metrics to W&B, false = no logging
 wandb_project: "autoformer-from-scratch"
-wandb_run_name: "ettm2_336_lr1e4_10epochs"
+wandb_run_name: "ettm2_336"

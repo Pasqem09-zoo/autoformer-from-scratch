@@ -293,11 +293,11 @@ class ExpMain:
                     )
 
                     if self.config.get("wandb_enabled", False):
+                        epoch_progress = epoch + (batch_idx + 1) / train_steps
                         wandb.log({
+                            "epoch_progress": epoch_progress,
                             "batch_loss_every_100": loss.item()
                         })
-
-
 
                     iter_count = 0
                     time_now = time.time()
@@ -448,12 +448,13 @@ class ExpMain:
         results_dir = self.config.get("results_dir", "results") ### chiamo la directory dove salvare i risultati il cui nome è nel config, altrimenti uso "results" come default
         os.makedirs(results_dir, exist_ok=True)
 
-        np.save(os.path.join(results_dir, "pred.npy"), preds)
-        np.save(os.path.join(results_dir, "true.npy"), trues)
         np.save(
             os.path.join(results_dir, "metrics.npy"),
             np.array([mae_score, mse_score])
         )
+        if self.config.get("save_predictions", False):
+            np.save(os.path.join(results_dir, "pred.npy"), preds)
+            np.save(os.path.join(results_dir, "true.npy"), trues)
 
         save_experiment_summary(
             config=self.config,

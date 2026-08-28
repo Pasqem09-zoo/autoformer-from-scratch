@@ -45,7 +45,7 @@ d_ff: 2048                             # hidden dimension of feed-forward layers
 dropout: 0.05                          # dropout used in embedding and model blocks
 
 moving_avg: 25                         # moving average window used in SeriesDecomp
-c: 1                                   # factor c used for top-k delays in Auto-Correlation
+c: 3                                   # factor c used for top-k delays in Auto-Correlation
 
 activation: "gelu"
 
@@ -97,4 +97,4 @@ use_cpu: true                          # fallback to CPU if no GPU backend is av
 
 wandb_enabled: true                    # enable W&B logging, true = log metrics to W&B, false = no logging
 wandb_project: "autoformer-from-scratch"
-wandb_run_name: "electricity_720_lr1e4_10epochs"
+wandb_run_name: "electricity_720"

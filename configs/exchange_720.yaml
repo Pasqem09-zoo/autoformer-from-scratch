@@ -1,21 +1,21 @@
 # =============================
-# General setup
+# Experiment
 # =============================
 
-experiment_name:  "ettm2_96_lr1e4_10epochs"      # name of this experiment
-seed: 3097                             # random seed for reproducibility
+experiment_name: "exchange_720_lr1e4_10epochs"
+seed: 3097
 
 
 # =============================
 # Dataset
 # =============================
 
-dataset: "ETTm2"                       # dataset used for the first debug experiment
-data_path: "data/raw/ETTm2.csv"        # path to the raw csv file
+dataset: "Exchange"                                   # dataset used for the first debug experiment
+data_path: "data/raw/exchange_rate/exchange_rate.csv"        # path to the raw csv file
 
 features: "M"                          # "M" = multivariate forecasting
 target: "OT"                           # target column used in ETT datasets
-results_dir: "results/ettm2_96_lr1e4_10epochs"       # directory where to save results
+results_dir: "results/exchange_720_lr1e4_10epochs"       # directory where to save results
 
 
 # =============================
@@ -24,7 +24,7 @@ results_dir: "results/ettm2_96_lr1e4_10epochs"       # directory where to save r
 
 seq_len: 96                            # input length given to the encoder
 label_len: 48                          # known past part given to the decoder
-pred_len: 96                           # forecasting horizon
+pred_len: 720                           # forecasting horizon
 
 # Decoder length is not written directly in the config.
 # It will be computed in the code as:
@@ -45,7 +45,7 @@ d_ff: 2048                             # hidden dimension of feed-forward layers
 dropout: 0.05                          # dropout used in embedding and model blocks
 
 moving_avg: 25                         # moving average window used in SeriesDecomp
-c: 1                                   # factor c used for top-k delays in Auto-Correlation
+c: 3                                   # factor c used for top-k delays in Auto-Correlation
 
 activation: "gelu"
 
@@ -53,9 +53,9 @@ activation: "gelu"
 # Input / output dimensions
 # =============================
 
-enc_in: 7                              # number of input variables for the encoder
-dec_in: 7                              # number of input variables for the decoder
-c_out: 7                               # number of output variables
+enc_in: 8                              # number of input variables for the encoder
+dec_in: 8                            # number of input variables for the decoder
+c_out: 8                             # number of output variables
 
 
 # =============================
@@ -63,7 +63,7 @@ c_out: 7                               # number of output variables
 # =============================
 
 embed: "timeF"                         # use numerical time features
-freq: "t"                              # time frequency: "t" = minutely/15-min features for ETTm2, other datasets are used to use "h" = hourly features
+freq: "d"                              # time frequency: "t" = minutely/15-min features for ETTm2, other datasets are used to use "h" = hourly features
 
 
 # =============================
@@ -79,7 +79,7 @@ lradj: "type1"                         # learning rate adjustment strategy
 use_grad_clip: false                    # whether to use gradient clipping
 grad_clip: 1.0                         # maximum norm for gradient clipping
 
-checkpoint_dir: "checkpoints/ettm2_96_lr1e4_10epochs" # directory where to save best model checkpoint
+checkpoint_dir: "checkpoints/exchange_720_lr1e4_10epochs" # directory where to save best model checkpoint
 
 
 # =============================
@@ -97,4 +97,4 @@ use_cpu: true                          # fallback to CPU if no GPU backend is av
 
 wandb_enabled: true                    # enable W&B logging, true = log metrics to W&B, false = no logging
 wandb_project: "autoformer-from-scratch"
-wandb_run_name: "ettm2_96"
+wandb_run_name: "exchange_720"

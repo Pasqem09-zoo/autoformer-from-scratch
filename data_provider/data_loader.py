@@ -362,7 +362,7 @@ def get_data_loader(
             scale=scale
         )
 
-    elif dataset_name in ["electricity", "traffic", "weather", "ili"]:
+    elif dataset_name in ["electricity", "traffic", "weather", "exchange", "ili"]:
         dataset = CustomDataset(
             data_path=data_path,
             flag=flag,
