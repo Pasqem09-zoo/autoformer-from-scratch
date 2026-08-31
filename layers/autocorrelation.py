@@ -4,21 +4,6 @@ Auto-Correlation mechanism used by Autoformer.
 This module contains:
 - AutoCorrelation: core mechanism based on FFT and time-delay aggregation
 - AutoCorrelationLayer: multi-head wrapper that projects input into Q, K, V
-
-Diversamente dallo pseudo codice della speedup versione dell'articolo, qui separiamo le cose che si fanno a single-head
-con quelle multi-head:
-AutoCorrelationLayer farà:
-- proiezioni lineari Q, K, V
-- reshape in heads
-
-AutoCorrelation fa:
-- resize K, V
-- FFT
-- correlazione
-- mean
-- top-k
-- roll
-- somma
 """
 
 import torch
@@ -39,10 +24,12 @@ class AutoCorrelation(nn.Module):
         output:  [batch_size, seq_len, n_heads, d_head]
     """
 
-    def __init__(self, c=1): ### c è l iperparametro che serve per decidere quanti ritardi temporali tenere nella A-C
+    def __init__(self, c=1):
         super().__init__()
 
         self.c = c
+
+
 
     def _resize_keys_values(self, queries, keys, values):
         """
@@ -52,15 +39,15 @@ class AutoCorrelation(nn.Module):
         key/value length may be different.
         """
 
-        query_length = queries.shape[1] ### restituisce la dimensione della sequenza: [batch_size, seq_len, n_heads, d_head]
+        query_length = queries.shape[1]     # [batch_size, seq_len, n_heads, d_head]
         key_length = keys.shape[1]
 
         if key_length > query_length:
-            keys = keys[:, :query_length, :, :] ### gli dai la dimensione della sequenza di queries, quindi se keys è più lungo lo taglia
+            keys = keys[:, :query_length, :, :]
             values = values[:, :query_length, :, :]
 
-        elif key_length < query_length: ### se è piu piccola, la paddi con degli zeri: padding a destra, quindi aggiunge zeri alla fine della sequenza
-            padding_length = query_length - key_length 
+        elif key_length < query_length:
+            padding_length = query_length - key_length
             keys_padding = torch.zeros(
                 keys.shape[0],
                 padding_length,
@@ -77,10 +64,13 @@ class AutoCorrelation(nn.Module):
                 device=values.device,
                 dtype=values.dtype
             )
-            keys = torch.cat([keys, keys_padding], dim=1) ### cat concatena keys e padding lungo la dimensione della sequenza (dim=1)
-            values = torch.cat([values, values_padding], dim=1) ### cat concatena values e padding lungo la dimensione della sequenza (dim=1)
+            keys = torch.cat([keys, keys_padding], dim=1)       # concatenate along the sequence dimension (dim=1)
+            values = torch.cat([values, values_padding], dim=1)
 
         return keys, values
+
+
+
 
     def _time_delay_aggregation(self, values, corr):
         """
@@ -94,66 +84,36 @@ class AutoCorrelation(nn.Module):
         - combine shifted values with softmax weights
         """
 
-        ### è pensata per prendere in input 4 dim cioè quelle dopo aver diviso in heads. per questo serve AutoCorrelationLayer
         batch_size = values.shape[0]
         n_heads = values.shape[1]
         d_head = values.shape[2]
         seq_len = values.shape[3]
 
-        top_k = int(self.c * math.log(seq_len))     # Number of delays to keep
-        top_k = max(1, top_k)                       ### ci deve essere almeno 1 lag
+        top_k = int(self.c * math.log(seq_len))                     # Number of delays to keep
+        top_k = max(1, top_k)
 
-        ### corr ha shape [B, L, H, E]
-        ### Facciamo la media su heads e canali, ma NON sul batch
-        ### Risultato: [B, L]
-        mean_corr = torch.mean(torch.mean(corr, dim=1), dim=1)  ### corr ora ha shape [B, H, E, L], come nel codice ufficiale
-                                                                ### facciamo la media prima sugli heads H e poi sui canali E
-                                                                ### NON facciamo ancora la media sul batch, perché vogliamo mantenere pesi diversi per ogni serie
-                                                                ### il risultato ha shape [B, L]
-                                                                ### quindi per ogni elemento del batch otteniamo una correlazione media per ogni possibile lag temporale
+        mean_corr = torch.mean(torch.mean(corr, dim=1), dim=1)      # mean_corr has shape [B, L] and represents the mean correlation for each series in the batch over all heads and channels
 
-        ### Ora scegliamo i lag globali
-        ### Per scegliere i lag facciamo la media anche sul batch
-        ### Risultato: [L]
-        global_corr = torch.mean(mean_corr, dim=0) ### torch.mean(mean_corr, dim=0) restituisce un tensore di dimensione [L] che rappresenta la media della correlazione su
-                                                   ### tutti i batch per ogni lag. quindi global_corr è un tensore di dimensione [L] che rappresenta la correlazione media globale per ogni lag
-        
-        ### Prendiamo gli indici dei top_k lag più importanti
-        ### topk_indices ha shape [top_k]
-        topk_indices = torch.topk(global_corr, top_k, dim=-1)[1]
+        global_corr = torch.mean(mean_corr, dim=0)                  # global_corr has shape [L] and represents the global mean correlation for each lag over all series in the batch
 
-        ### Per ogni lag scelto, prendiamo il valore di correlazione
-        ### separatamente per ogni serie del batch
-        ### Risultato: [B, top_k]
+        topk_indices = torch.topk(global_corr, top_k, dim=-1)[1]    # torch.topk: best-k lag indices with shape [top_k] over the whole batch
+
         weights = torch.stack(
-            [mean_corr[:, topk_indices[i]] for i in range(top_k)],
+            [mean_corr[:, topk_indices[i]] for i in range(top_k)],  # weights has shape [B, top_k] and represents the mean correlation for each series in the batch at the selected top-k lags
             dim=-1
         )
+        weights = torch.softmax(weights, dim=-1)                    # normalize weights to sum to 1 for each series in the batch
 
-        ### Trasformiamo le correlazioni in pesi
-        ### Ogni serie del batch ha i suoi pesi sui lag scelti
-        weights = torch.softmax(weights, dim=-1)
-
-        ### Tensore finale, stessa shape di values: [B, L, H, E]
-        output = torch.zeros_like(values)
+        output = torch.zeros_like(values)                           # [B, H, E, L] output tensor initialized to zeros
 
         for i in range(top_k):
-            delay = int(topk_indices[i].item()) ### seleziona il lag i-esimo
-
-            shifted_values = torch.roll(values, shifts=-delay, dims=-1)  ### values ora ha shape [B, H, E, L]
-                                                                        ### quindi la dimensione temporale L è l'ultima, cioè dim=-1
-                                                                        ### facciamo lo stesso roll degli autori: spostiamo i values di -delay lungo il tempo
-                                                                        ### in questo modo allineiamo la sequenza rispetto al lag periodico selezionato
-
-            ### weights[:, i] ha shape [B]
-            ### Lo trasformiamo in [B, 1, 1, 1] per moltiplicarlo con [B, L, H, E]
-            weight = weights[:, i].view(batch_size, 1, 1, 1)
-
-            output = output + weight * shifted_values ### è tipo il context vector dei transformers
-        ### es. delay=24: se il modello ha scoperto che la serie si ripete ogni 24 passi, allora prende V 
-        ### spostato di 24 e lo usa per costruire la nuova rappresentazione
+            delay = int(topk_indices[i].item())
+            shifted_values = torch.roll(values, shifts=-delay, dims=-1)     # shift values by the selected "-delay" on the last dimension (L, temporal dimension)
+            weight = weights[:, i].view(batch_size, 1, 1, 1)                # [B] -> [B, 1, 1, 1] to broadcast over [B, H, E, L]
+            output = output + weight * shifted_values                       # new representation is a weighted sum of the shifted values according to the selected delays
 
         return output
+
 
 
     def _time_delay_aggregation_inference(self, values, corr):
@@ -163,9 +123,6 @@ class AutoCorrelation(nn.Module):
         Difference from training version:
         - training selects global delays shared by the whole batch;
         - inference selects delays separately for each element of the batch.
-
-        values has shape [B, H, E, L]
-        corr has shape [B, H, E, L]
         """
 
         batch_size = values.shape[0]
@@ -173,8 +130,7 @@ class AutoCorrelation(nn.Module):
         d_head = values.shape[2]
         seq_len = values.shape[3]
 
-        ### Creo gli indici temporali base [0, 1, ..., L-1]
-        ### e li espando alla shape [B, H, E, L]
+        # Create the base temporal indices [0, 1, ..., L-1] and expand them to shape [B, H, E, L]
         init_index = torch.arange(seq_len).to(values.device)
         init_index = init_index.unsqueeze(0).unsqueeze(0).unsqueeze(0)
         init_index = init_index.repeat(batch_size, n_heads, d_head, 1)
@@ -182,45 +138,29 @@ class AutoCorrelation(nn.Module):
         top_k = int(self.c * math.log(seq_len))
         top_k = max(1, top_k)
 
-        ### corr ha shape [B, H, E, L]
-        ### facciamo la media su heads e canali
-        ### risultato: [B, L]
         mean_corr = torch.mean(torch.mean(corr, dim=1), dim=1)
 
-        ### In inference scegliamo i top_k lag migliori per ogni elemento del batch
-        ### weights ha shape [B, top_k]
-        ### delays ha shape [B, top_k]
-        weights, delays = torch.topk(mean_corr, top_k, dim=-1)
-
-        ### trasformiamo le correlazioni in pesi
+        weights, delays = torch.topk(mean_corr, top_k, dim=-1)      # two tensors: weights and delays, both of shape [B, top_k]
         weights = torch.softmax(weights, dim=-1)
 
-        ### raddoppiamo values lungo il tempo per evitare problemi di indice
-        ### quando usiamo gather con i delay
-        tmp_values = values.repeat(1, 1, 1, 2)
+        tmp_values = values.repeat(1, 1, 1, 2)                      # values dimension: [B, H, E, 2*L]
 
         output = torch.zeros_like(values).float()
 
         for i in range(top_k):
-            ### delay del lag i-esimo per ogni elemento del batch
-            ### shape: [B]
-            delay = delays[:, i]
 
-            ### espandiamo delay a [B, H, E, L]
+            delay = delays[:, i]
             delay = delay.unsqueeze(1).unsqueeze(1).unsqueeze(1)
             delay = delay.repeat(1, n_heads, d_head, seq_len)
 
-            ### indici temporali spostati secondo il delay
             gather_index = init_index + delay
 
-            ### prendiamo i values shiftati usando gather
-            pattern = torch.gather(
+            pattern = torch.gather(                                 # torch.gather: gather values from tmp_values according to the indices in gather_index along the last dimension (L)
                 tmp_values,
                 dim=-1,
                 index=gather_index
             )
 
-            ### peso del lag i-esimo per ogni elemento del batch
             weight = weights[:, i]
             weight = weight.unsqueeze(1).unsqueeze(1).unsqueeze(1)
 
@@ -229,11 +169,15 @@ class AutoCorrelation(nn.Module):
         return output
     
 
-    def forward(self, queries, keys, values): ### percorso completo di questa classe: prende queries, keys, values, 
-        ### calcola le correlazioni con FFT, trova implicitamente i lag importanti tramite corr, poi chiama la time-delay aggregation
+
+    def forward(self, queries, keys, values):
+        """
+        Forward pass of the AutoCorrelationLayer.
+
+        It computes the auto-correlation between queries and keys, and then aggregates the values based on the most important time delays.
+        """
         
-        # queries, keys, values have shape [B, L, H, E]
-        keys, values = self._resize_keys_values(
+        keys, values = self._resize_keys_values(        # resize keys and values to match the temporal length of queries
             queries=queries,
             keys=keys,
             values=values
@@ -241,8 +185,7 @@ class AutoCorrelation(nn.Module):
 
         seq_len = queries.shape[1]
 
-        ### Portiamo la dimensione temporale alla fine, come nel codice ufficiale:
-        ### [B, L, H, E] -> [B, H, E, L]
+        # [B, L, H, E] -> [B, H, E, L]
         queries = queries.permute(0, 2, 3, 1).contiguous()
         keys = keys.permute(0, 2, 3, 1).contiguous()
         values = values.permute(0, 2, 3, 1).contiguous()
@@ -254,20 +197,19 @@ class AutoCorrelation(nn.Module):
         # Correlation in frequency domain
         res = q_fft * torch.conj(k_fft)
 
-        # Back to time domain
-        corr = torch.fft.irfft(res, n=seq_len, dim=-1) ### parte FFT che trova le correlazioni sui lag 
+        # Back to time domain. corr represents the auto-correlation between queries and keys
+        corr = torch.fft.irfft(res, n=seq_len, dim=-1)
 
         # Time-delay aggregation
         if self.training:
-            output = self._time_delay_aggregation(values, corr) ### training: usa lag globali condivisi dal batch, come nella speedup version degli autori
+            output = self._time_delay_aggregation(values, corr)                 # speed-up training version
         else:
-            output = self._time_delay_aggregation_inference(values, corr) ### validation/test: usa lag specifici per ogni serie del batch, come nel codice ufficiale
-            
-        ### Torniamo alla shape usata dal resto del nostro codice:
-        ### [B, H, E, L] -> [B, L, H, E]
+            output = self._time_delay_aggregation_inference(values, corr)       # inference version
+
+        # [B, H, E, L] -> [B, L, H, E]
         output = output.permute(0, 3, 1, 2).contiguous()
 
-        return output
+        return output       # return the weighted sum of the shifted values
 
 
 class AutoCorrelationLayer(nn.Module):
@@ -291,17 +233,17 @@ class AutoCorrelationLayer(nn.Module):
         self.autocorrelation = autocorrelation
         self.d_model = d_model
         self.n_heads = n_heads
-        self.d_head = d_model // n_heads ### numero dimensioni per head, quindi se d_model=512 e n_heads=8 allora d_head=64
+        self.d_head = d_model // n_heads
 
-        ### insieme a keys e values creiamo Q K e V come nella attention classica
-        self.query_projection = nn.Linear(d_model, d_model) ### d_model è la dimensione dell'input, quindi 512, e l'output è sempre 512, ma poi lo split in heads farà in modo che ogni head abbia dimensione d_head=64
+        self.query_projection = nn.Linear(d_model, d_model)
         self.key_projection = nn.Linear(d_model, d_model)
         self.value_projection = nn.Linear(d_model, d_model)
         self.out_projection = nn.Linear(d_model, d_model)
 
-    def forward(self, queries, keys, values): ### prende in input queries, keys e values di dimensione [B, L, d_model] e dopo proiezioni, split in d_heads, autocorrelation, reshape restituisce output di dimensione [B, L, d_model]
 
-        ### salviamo le dim principali. separatamente per queries e keys perche possono avere lunghezze diverse nella fase di cross attention (K e V dall encoder e Q dal decoder)
+
+    def forward(self, queries, keys, values):
+
         batch_size = queries.shape[0]
         query_len = queries.shape[1]
         key_len = keys.shape[1]
@@ -311,8 +253,7 @@ class AutoCorrelationLayer(nn.Module):
         keys = self.key_projection(keys)
         values = self.value_projection(values)
 
-        # Split d_model into multiple heads
-        # [B, L, d_model] -> [B, L, H, d_head]
+        # Reshape Q, K, V to have shape from [B, L, d_model] to [B, L, H, d_head]
         queries = queries.view(
             batch_size,
             query_len,
@@ -335,21 +276,20 @@ class AutoCorrelationLayer(nn.Module):
         )
 
         # Apply core Auto-Correlation
-        ### qui entra in gioco la classe creata sopra che prende in input queries, keys e values di dimensione [B, L, H, d_head]
         output = self.autocorrelation(
             queries=queries,
             keys=keys,
             values=values
         )
 
-        # Merge heads back
+        # Merge heads back: d_model = n_heads * d_head
         # [B, L, H, d_head] -> [B, L, d_model]
-        output = output.reshape( ### reshape richiede che d_model = n_heads * d_head. quindi mergia le ultime due dim
+        output = output.reshape(
             batch_size,
             query_len,
             self.d_model
         )
 
-        output = self.out_projection(output) ### proiezione finale
+        output = self.out_projection(output)
 
         return output

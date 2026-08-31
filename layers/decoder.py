@@ -1,7 +1,3 @@
-"""
-Decoder blocks for Autoformer.
-"""
-
 import torch
 import torch.nn as nn
 
@@ -46,8 +42,8 @@ class DecoderLayer(nn.Module):
     ):
         super().__init__()
 
-        self.self_attention_layer = self_attention_layer
-        self.cross_attention_layer = cross_attention_layer
+        self.self_attention_layer = self_attention_layer        # Q,V and K all come from decoder input x
+        self.cross_attention_layer = cross_attention_layer      # Q comes from decoder input x, K and V come from encoder output cross
 
         self.decomp1 = SeriesDecomp(kernel_size=moving_avg)
         self.decomp2 = SeriesDecomp(kernel_size=moving_avg)
@@ -55,22 +51,22 @@ class DecoderLayer(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
 
+        # Feed-forward network with Conv1d kernel size 1
         self.conv1 = nn.Conv1d(
             in_channels=d_model,
             out_channels=d_ff,
             kernel_size=1,
             bias=False
         )
-
         self.conv2 = nn.Conv1d(
             in_channels=d_ff,
             out_channels=d_model,
             kernel_size=1,
             bias=False
         )
-
         self.activation = nn.ReLU() if activation == "relu" else nn.GELU()
         
+        # Trend projection: project the trend from d_model to c_out (variable dimension)
         self.trend_projection = nn.Conv1d(
             in_channels=d_model,
             out_channels=c_out,
@@ -80,6 +76,8 @@ class DecoderLayer(nn.Module):
             padding_mode="circular",
             bias=False
         )
+
+
 
     def forward(self, x, cross):
         # x has shape [batch_size, dec_len, d_model]
@@ -92,12 +90,10 @@ class DecoderLayer(nn.Module):
             values=x
         )
 
-        x = x + self.dropout(self_output) #### residual connection con dropout al fine di evitare overfitting
-        x, trend1 = self.decomp1(x) ### prima decomposizione: a differenza dell'encoder qui non buttiamo via il trend
+        x = x + self.dropout(self_output)       # residual connection
+        x, trend1 = self.decomp1(x)             # keep also the trend
 
-        # Cross Auto-Correlation:
-        # Q comes from decoder x
-        # K and V come from encoder output cross
+        # Cross Auto-Correlation: Q comes from decoder x, K and V come from encoder output
         cross_output = self.cross_attention_layer(
             queries=x,
             keys=cross,
@@ -107,34 +103,26 @@ class DecoderLayer(nn.Module):
         x = x + self.dropout(cross_output)
         x, trend2 = self.decomp2(x)
 
-        # Feed-forward network with Conv1d kernel size 1
+        # Feed-forward network
         y = x.transpose(1, 2)
-
         y = self.conv1(y)
         y = self.activation(y)
         y = self.dropout(y)
-
         y = self.conv2(y)
         y = self.dropout(y)
-
         y = y.transpose(1, 2)
 
-        x, trend3 = self.decomp3(x + y) ### x sarebbe la parte stagionale
+        x, trend3 = self.decomp3(x + y)           # x is the updated seasonal part, trend3 is the trend extracted from this layer
 
-        # Sum the trend components extracted in this decoder layer
-        residual_trend = trend1 + trend2 + trend3 ### shape [B, dec_len, d_model]
+        residual_trend = trend1 + trend2 + trend3                   # shape [B, dec_len, d_model]
 
-        # Project trend from d_model to c_out (variable dimension, e.g., 1 for univariate forecasting)
-        # [B, dec_len, d_model] -> [B, d_model, dec_len]
-        residual_trend = residual_trend.permute(0, 2, 1) ### si fa perche conv1d vuole in input [B, C, L] e noi abbiamo [B, L, C]
+        residual_trend = residual_trend.permute(0, 2, 1)            # [B, dec_len, d_model] -> [B, d_model, dec_len]
 
-        # [B, d_model, dec_len] -> [B, c_out, dec_len]
-        residual_trend = self.trend_projection(residual_trend) ### è una conv1d con kernel size 3 e padding circolare, quindi non cambia la lunghezza della sequenza dec_len ma cambia il numero di canali da d_model a c_out
+        residual_trend = self.trend_projection(residual_trend)      # [B, d_model, dec_len] -> [B, c_out, dec_len]
 
-        # [B, c_out, dec_len] -> [B, dec_len, c_out]
-        residual_trend = residual_trend.transpose(1, 2) ### si torna a [B, dec_len, c_out] perche' il decoder output deve avere la stessa forma di input
+        residual_trend = residual_trend.transpose(1, 2)             # [B, c_out, dec_len] -> [B, dec_len, c_out]
 
-        return x, residual_trend ### stagionale aggiornata e trend prodotto da questo layer e proiettato in c_out
+        return x, residual_trend                                    # return the updated seasonal part and the projected trend part
 
 
 
@@ -148,7 +136,7 @@ class Decoder(nn.Module):
     Input shapes:
         x:     [batch_size, dec_len, d_model]
         cross: [batch_size, enc_len, d_model]
-        trend: [batch_size, dec_len, c_out] (è la parte trend già nello spazio originario, con c_out variabili)
+        trend: [batch_size, dec_len, c_out]
 
     Output shapes:
         x:     [batch_size, dec_len, d_model]
@@ -158,8 +146,7 @@ class Decoder(nn.Module):
     def __init__(self, decoder_layers, norm_layer=None, projection=None):
         super().__init__()
 
-        self.decoder_layers = nn.ModuleList(decoder_layers) ### ModuleList è come una lista Python, ma compatibile con 
-                                                            ### PyTorch: così PyTorch sa che quei layer hanno parametri allenabili
+        self.decoder_layers = nn.ModuleList(decoder_layers)
         self.norm_layer = norm_layer
         self.projection = projection
 

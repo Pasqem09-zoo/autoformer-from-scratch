@@ -1,5 +1,11 @@
 """
 Dataset and DataLoader utilities for time series forecasting.
+
+This module provides classes and functions to load and preprocess time series data for training and evaluating forecasting models.
+
+Classes:
+- ETTDataset: Dataset class for the ETTm2 dataset.
+- CustomDataset: Dataset class for other datasets such as Electricity, Traffic, and Weather.
 """
 
 import pandas as pd
@@ -13,22 +19,17 @@ from utils.timefeatures import time_features
 
 
 class ETTDataset(Dataset):
-    """
-    PyTorch Dataset for ETT time series forecasting.
-
-    It builds sliding windows for Autoformer.
-    """
 
     def __init__(
         self,
-        data_path, ### percorso del csv tipo data/raw/ETTm2.csv
-        flag="train", ### train or test or val
-        seq_len=96, ### lunghezza della finestra temporale passata data all'encoder
-        label_len=48, ### lunghezza della finestra temporale passata data al decoder
-        pred_len=96, ### lunghezza della finestra temporale da predire
-        features="M", ### M: multivariate, S: univariate
-        target="OT", ### colonna target da predire
-        scale=True ### se normalizzare o meno i dati
+        data_path,
+        flag="train",    # train or test or val
+        seq_len=96,      # past length given to the encoder
+        label_len=48,    # length of the known part of the decoder input
+        pred_len=96,     # length of the prediction window
+        features="M",    # M: multivariate, S: univariate
+        target="OT",     # column to predict
+        scale=True       # whether to normalize the data
     ):
         super().__init__()
 
@@ -51,13 +52,12 @@ class ETTDataset(Dataset):
     def _read_data(self):
         """
         Read the CSV file, split the data and select the columns.
+
+        The ETT datasets have a date column and several numerical columns:
+        date, HUFL, HULL, MUFL, MULL, LUFL, LUFL, LULL, OT
         """
 
         df_raw = pd.read_csv(self.data_path)
-
-        # The ETT datasets have a date column and several numerical columns.
-        # Example columns:
-        # date, HUFL, HULL, MUFL, MULL, LUFL, LULL, OT
 
         if self.features == "M":
             # Multivariate forecasting: use all variables except date
@@ -73,36 +73,34 @@ class ETTDataset(Dataset):
 
 
         data = df_data.values
-        ### Nei dataset di forecasting non facciamo split casuale, perché altrimenti mischieremmo passato e futuro
-        ### Official ETTm2 split used by the Autoformer authors.
-        ### ETTm2 is sampled every 15 minutes, so there are 4 observations per hour.
-        ### train = 12 months, validation = 4 months, test = 4 months
-        num_train = 12 * 30 * 24 * 4 ### 12 mesi × 30 giorni × 24 ore × 4 punti per ora
-        num_val = 4 * 30 * 24 * 4 ### 4 mesi × 30 giorni × 24 ore × 4 punti per ora
-        num_test = 4 * 30 * 24 * 4 ### 4 mesi × 30 giorni × 24 ore × 4 punti per ora
+        # Official ETTm2 split used by the Autoformer authors.
+        # ETTm2 is sampled every 15 minutes, so there are 4 observations per hour.
+        # train = 12 months, validation = 4 months, test = 4 months
+        
+        num_train = 12 * 30 * 24 * 4    # 12 months × 30 days × 24 hours × 4 points per hour
+        num_val = 4 * 30 * 24 * 4       # 4 months × 30 days × 24 hours × 4 points per hour
+        num_test = 4 * 30 * 24 * 4      # 4 months × 30 days × 24 hours × 4 points per hour
 
 
-        ### per ogni variabile (colonna) calcola media e sd e normalizza tutti i dati (train,test e valid) per avere tutto sulla stessa scala
-        train_data = data[0:num_train] ### RICORDA: la posizione num_train è esclusa
-        if self.scale: ### nell'init sta a true
+        # normalization is done only on the training data and then applied to the entire dataset
+        train_data = data[0:num_train]
+        if self.scale:
             self.scaler.fit(train_data)
             data = self.scaler.transform(data)
 
 
-        ### La colonna date nel CSV viene letta inizialmente come testo. Con pd.todate() la trasformiamo in una vera data pandas, così possiamo estrarre mese, giorno, ora, ecc
         df_stamp = df_raw[["date"]].copy()
-        df_stamp["date"] = pd.to_datetime(df_stamp["date"])  ### trasforma in una vera data pandas
+        df_stamp["date"] = pd.to_datetime(df_stamp["date"])             # convert the date column to pandas datetime format
+        data_stamp = time_features(df_stamp["date"].values, freq="t")   # set default frequency to 15 minutes (t = 15min) for ETTm2 dataset
 
-        data_stamp = time_features(df_stamp["date"].values, freq="t")
 
-
-        border1s = { ### è il punto da cui iniziamo a prendere i dati per costruire le finestre di train val e test
+        border1s = {    # the starting index of the data for training, validation, and testing
             "train": 0,
-            "val": num_train - self.seq_len, ### la validation sborda un pochino indietro perche la prima finestra di validation ha bisogno anche del passato immediatamente precedente, cioè della fine del train (gli ultimi seq_len punti del train)
+            "val": num_train - self.seq_len,
             "test": num_train + num_val - self.seq_len
         }
 
-        border2s = { ### è il punto dove finisce la porzione di dati di border1s
+        border2s = {
             "train": num_train,
             "val": num_train + num_val,
             "test": num_train + num_val + num_test
@@ -113,24 +111,10 @@ class ETTDataset(Dataset):
 
         self.data_x = data[border1:border2]
         self.data_y = data[border1:border2]
-        ### train: data[0 : num_train]
-        ### validation: data[num_train - seq_len : num_train + num_val]
-        ### test: data[num_train + num_val - seq_len : num_train + num_val + num_test]
-        ### graficamente le finestre sono i pezzi che autoformer prende per fare le predizioni:
-        # serie lunga:
-        # |--------------------------------------------------------------------------------|
-        # finestra 1:
-        # |---- passato 96 ----|---- futuro 96 ----|
-        # finestra 2:
-        #    |---- passato 96 ----|---- futuro 96 ----|
-        # finestra 3:
-        #       |---- passato 96 ----|---- futuro 96 ----|
-
         self.data_stamp = data_stamp[border1:border2]
 
 
 
-    ### dice quante finestre possiamo costruire dentro il pezzo di serie che ho selezionato
     def __len__(self):
         """
         Return the number of sliding windows available in the dataset.
@@ -140,25 +124,7 @@ class ETTDataset(Dataset):
 
 
 
-    ### è ciò che viene attivato quando chiami un esempio del dataset: dato un indice costruisce la finestra index
-    ### e.g. se index=0 lui costruisce la prima finestra:
-    ### seq_x = passato dato all'encoder
-    ### seq_y = ultimi label_len punti noti + pred_len punti futuri veri
-    ### seq_x_mark = time features associate a seq_x
-    ### seq_y_mark = time features associate a seq_y
-    ###
-    ### con i parametri base seq_len = 96, label_len = 48, pred_len = 96 sarà:
-    ### seq_x = data[0:96]
-    ### seq_y = data[48:192]
-    ###
-    ### quindi seq_y contiene:
-    ### data[48:96]   -> parte nota data al decoder
-    ### data[96:192]  -> futuro vero da prevedere
-    ###
-    ### nel training loop useremo solo la parte finale di seq_y come target:
-    ### target = seq_y[:, -pred_len:, :]
-    ###
-    ### QUINDI GETITEM TRASFORMA UNA LUNGA SERIE TEMPORALE IN UN ESEMPIO SUPERVISIONATO
+
     def __getitem__(self, index):
         """
         Build one sliding window.
@@ -178,20 +144,13 @@ class ETTDataset(Dataset):
 
         return (
             torch.tensor(seq_x, dtype=torch.float32),
-            torch.tensor(seq_y, dtype=torch.float32), ### contiene ultimi label_len punti noti + pred_len punti futuri veri
+            torch.tensor(seq_y, dtype=torch.float32),
             torch.tensor(seq_x_mark, dtype=torch.float32),
             torch.tensor(seq_y_mark, dtype=torch.float32)
         )
-    ### il batch è:
-    # batch_x      → input encoder
-    # batch_y      → decoder input completo + target futuro
-    # batch_x_mark → time features encoder
-    # batch_y_mark → time features decoder
 
 
 
-    ### Durante il training lavoriamo sui dati normalizzati, perché la rete impara meglio.
-    ### Però alla fine, quando faremo previsioni e magari vorremo confrontare graficamente le previsioni con i dati reali, vogliamo riportare tutto alla scala originale
     def inverse_transform(self, data):
         """
         Transform normalized data back to the original scale.
@@ -204,7 +163,7 @@ class ETTDataset(Dataset):
 
 class CustomDataset(Dataset):
     """
-    Dataset class for non-ETT datasets such as Electricity, Traffic and Weather.
+    Dataset class for non-ETT datasets: Electricity, Traffic, Weather, Exchange, and ILI.
 
     This class follows the official Autoformer split:
         70% train
@@ -238,11 +197,13 @@ class CustomDataset(Dataset):
         self.features = features
         self.target = target
         self.scale = scale
-        self.freq = freq
+        self.freq = freq        # frequency of the time series data (e.g., 'h' for hourly, 'd' for daily, etc.)
 
         self.scaler = StandardScaler()
 
         self.__read_data__()
+
+
 
     def __read_data__(self):
         df_raw = pd.read_csv(self.data_path)
@@ -272,7 +233,7 @@ class CustomDataset(Dataset):
         ]
 
         if self.flag == "train":
-            set_type = 0
+            set_type = 0            # set_type is used to select the appropriate borders for train, val, and test splits
         elif self.flag == "val":
             set_type = 1
         else:
@@ -281,16 +242,16 @@ class CustomDataset(Dataset):
         border1 = border1s[set_type]
         border2 = border2s[set_type]
 
-        if self.features == "M" or self.features == "MS":
+        if self.features == "M" or self.features == "MS":                       # Multivariate forecasting: use all variables except date
             cols_data = df_raw.columns[1:]
             df_data = df_raw[cols_data]
-        elif self.features == "S":
+        elif self.features == "S":                                              # Univariate forecasting: use only the target column
             df_data = df_raw[[self.target]]
         else:
             raise ValueError("features must be one of: S, M, MS")
 
         if self.scale:
-            train_data = df_data.iloc[border1s[0]:border2s[0]]
+            train_data = df_data.iloc[border1s[0]:border2s[0]]                  # Use only the training data to fit the scaler
             self.scaler.fit(train_data.values)
             data = self.scaler.transform(df_data.values)
         else:
@@ -298,12 +259,13 @@ class CustomDataset(Dataset):
 
         df_stamp = df_raw[["date"]].iloc[border1:border2].copy()
         df_stamp["date"] = pd.to_datetime(df_stamp["date"])
-
-        data_stamp = time_features(df_stamp["date"].values, freq=self.freq)
+        data_stamp = time_features(df_stamp["date"].values, freq=self.freq)     # Generate time features for the timestamp
 
         self.data_x = data[border1:border2].astype("float32")
         self.data_y = data[border1:border2].astype("float32")
         self.data_stamp = data_stamp.astype("float32")
+
+
 
     def __getitem__(self, index):
         s_begin = index
@@ -320,8 +282,12 @@ class CustomDataset(Dataset):
 
         return seq_x, seq_y, seq_x_mark, seq_y_mark
 
+
+
     def __len__(self):
         return len(self.data_x) - self.seq_len - self.pred_len + 1
+
+
 
     def inverse_transform(self, data):
         return self.scaler.inverse_transform(data)
@@ -380,12 +346,12 @@ def get_data_loader(
 
     shuffle_flag = True if flag == "train" else False
 
-    data_loader = DataLoader(
+    data_loader = DataLoader(   # DataLoader is a PyTorch utility that provides an iterable over the dataset, allowing for easy batching and shuffling of data.
         dataset,
-        batch_size=batch_size, ### quante finestre voglio prendere in un batch
-        shuffle=shuffle_flag, ### nel training voglio mischiare le finestre, nel test e validation no perché voglio vedere come il modello si comporta su finestre consecutive della serie temporale
+        batch_size=batch_size,  # number of sliding windows in each batch
+        shuffle=shuffle_flag,   # shuffle the data only for training
         num_workers=0,
-        drop_last=True  ### se l ultimo batch non è completo (cioè non contiene batch_size finestre) lo scarta. Serve per evitare problemi con il batchnorm
+        drop_last=True          # drop the last incomplete batch to avoid issues with batch normalization
     )
 
     return dataset, data_loader

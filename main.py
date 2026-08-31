@@ -7,12 +7,9 @@ This script:
 - creates the experiment
 - runs training and testing
 
-la catena è:
-terminale
+python main.py -- config configs/ettm2_96.yaml
    ↓
-python main.py --config configs/ettm2_96.yaml
-   ↓
-main.py legge il config
+main.py reads the config
    ↓
 set_seed(...)
    ↓
@@ -31,10 +28,7 @@ from exp.exp_main import ExpMain
 from utils.tools import set_seed
 
 
-def load_config(config_path):
-    """
-    Load YAML configuration file.
-    """
+def load_config(config_path): # config_path e.g. "configs/ettm2_96.yaml"
 
     with open(config_path, "r") as file:
         config = yaml.safe_load(file)
@@ -43,9 +37,6 @@ def load_config(config_path):
 
 
 def main():
-    """
-    Main function.
-    """
 
     parser = argparse.ArgumentParser()
 

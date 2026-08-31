@@ -54,19 +54,19 @@ class Autoformer(nn.Module):
         self.dropout = config["dropout"]
         self.freq = config["freq"]
 
+        # Activation function
         self.activation = config.get("activation", "gelu")
 
         # Initial decomposition used to build decoder inputs
         self.decomp = SeriesDecomp(kernel_size=self.moving_avg)
 
-        # Embeddings
+        # Embeddings for encoder and decoder inputs
         self.enc_embedding = DataEmbeddingWithoutPos(
             c_in=self.enc_in,
             d_model=self.d_model,
             freq=self.freq,
             dropout=self.dropout
         )
-
         self.dec_embedding = DataEmbeddingWithoutPos(
             c_in=self.dec_in,
             d_model=self.d_model,
@@ -74,12 +74,11 @@ class Autoformer(nn.Module):
             dropout=self.dropout
         )
 
-        # Encoder
-        encoder_layers = []
 
+        # Encoder: series of encoder layers, each containing an AutoCorrelation layer
+        encoder_layers = []
         for _ in range(self.enc_layers):
             autocorrelation = AutoCorrelation(c=self.c)
-
             autocorrelation_layer = AutoCorrelationLayer(
                 autocorrelation=autocorrelation,
                 d_model=self.d_model,
@@ -94,7 +93,6 @@ class Autoformer(nn.Module):
                 dropout=self.dropout,
                 activation=self.activation
             )
-
             encoder_layers.append(encoder_layer)
 
         self.encoder = Encoder(
@@ -102,20 +100,18 @@ class Autoformer(nn.Module):
             norm_layer=MyLayerNorm(self.d_model)
         )
 
-        # Decoder
-        decoder_layers = []
 
+        # Decoder: series of decoder layers, each containing a self-attention layer and a cross-attention layer
+        decoder_layers = []
         for _ in range(self.dec_layers):
             self_autocorrelation = AutoCorrelation(c=self.c)
-
             self_attention_layer = AutoCorrelationLayer(
                 autocorrelation=self_autocorrelation,
                 d_model=self.d_model,
                 n_heads=self.n_heads
             )
 
-            cross_autocorrelation = AutoCorrelation(c=self.c)
-
+            cross_autocorrelation = AutoCorrelation(c=self.c)    # cross autocorrelation between encoder and decoder
             cross_attention_layer = AutoCorrelationLayer(
                 autocorrelation=cross_autocorrelation,
                 d_model=self.d_model,
@@ -138,39 +134,30 @@ class Autoformer(nn.Module):
         self.decoder = Decoder(
             decoder_layers=decoder_layers,
             norm_layer=MyLayerNorm(self.d_model),
-            projection=nn.Linear(self.d_model, self.c_out, bias=True)
+            projection=nn.Linear(self.d_model, self.c_out, bias=True)    # final linear projection to output dimension
         )
 
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
-        # x_enc has shape [B, seq_len, enc_in]
-        # x_dec is kept for API consistency, but decoder values are initialized internally
 
         batch_size = x_enc.shape[0]
 
-        # Mean used to initialize the future trend: [B, pred_len, enc_in] -> [B, 1, enc_in] -> [B, pred_len, enc_in]
-        ### serve solo come riempimento per inizializzare la parte futura del trend
-        mean = torch.mean(x_enc, dim=1).unsqueeze(1) # [B, pred_len, enc_in] -> [B, 1, enc_in]
-        mean = mean.repeat(1, self.pred_len, 1) # [B, pred_len, enc_in] -> [B, pred_len, enc_in]
+        # for inizialization, we use the mean of the encoder input to give a reasonable starting point for the trend
+        mean = torch.mean(x_enc, dim=1).unsqueeze(1)    # [B, pred_len, enc_in] -> mean on dimension 1 -> [B, 1, enc_in]
+        mean = mean.repeat(1, self.pred_len, 1)         # [B, 1, enc_in] -> [B, pred_len, enc_in]
 
-        # Zeros used to initialize the future seasonal part
-        # Shape: [B, pred_len, enc_in]
+        # Zeros used to initialize the future seasonal part: zeros in [batch_size, pred_len, dec_in]
         zeros = torch.zeros(
             x_dec.shape[0],
-            self.pred_len,
-            x_dec.shape[2], ### crea zeri con lo stesso numero di variabili del decoder
+            self.pred_len,      
+            x_dec.shape[2],     # number of features in the decoder input
             device=x_enc.device,
             dtype=x_enc.dtype
         )
 
-        # Initial decomposition of encoder input
-        seasonal_init, trend_init = self.decomp(x_enc) ### qui viene fatta la decomposizione della serie temporale in due parti: 
-                                                       ### la parte stagionale e la parte di trend. La funzione decomp prende in input x_enc, 
-                                                       # che è la sequenza di input dell'encoder, e restituisce due tensori: seasonal_init e 
-                                                       # trend_init. Questi tensori rappresentano rispettivamente la componente stagionale e
-                                                       # la componente di trend della serie temporale.
+        # Build decomposition of encoder input: self.decomp takes the encoder input and decomposes it into seasonal and trend components
+        seasonal_init, trend_init = self.decomp(x_enc)
 
-        # Build decoder seasonal input:
-        # last label_len seasonal values + future zeros
+        # Build decoder seasonal input: last label_len seasonal values + future zeros
         seasonal_init = torch.cat(
             [
                 seasonal_init[:, -self.label_len:, :],
@@ -179,9 +166,7 @@ class Autoformer(nn.Module):
             dim=1
         )
 
-        # Build decoder trend input:
-        # last label_len trend values + future mean
-        ### La parte passata del trend viene dalla moving average. La parte futura del trend viene inizializzata con la media dell'input encoder.
+        # Build decoder trend input: last label_len trend values + future mean
         trend_init = torch.cat(
             [
                 trend_init[:, -self.label_len:, :],
@@ -190,11 +175,11 @@ class Autoformer(nn.Module):
             dim=1
         )
 
-        # Encoder
+        # Encoder: embedding + encoder
         enc_out = self.enc_embedding(x_enc, x_mark_enc)
         enc_out = self.encoder(enc_out)
 
-        # Decoder
+        # Decoder: embedding + decoder
         dec_out = self.dec_embedding(seasonal_init, x_mark_dec)
         seasonal_part, trend_part = self.decoder(
             x=dec_out,
@@ -206,8 +191,6 @@ class Autoformer(nn.Module):
         output = seasonal_part + trend_part
 
         # Return only the prediction horizon
-        output = output[:, -self.pred_len:, :] ### prende solo la parte della predizione, che è lunga pred_len
-                                               # : prende tutti i batch, 
-                                               # -self.pred_len: prende gli ultimi pred_len elementi della sequenza,
-                                               #  : prende tutte le feature
+        output = output[:, -self.pred_len:, :]
+        
         return output

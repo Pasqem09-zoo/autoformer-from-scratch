@@ -126,8 +126,6 @@ def save_experiment_summary(
         file.write(f"patience: {config.get('patience')}\n")
         file.write(f"batch_size: {config.get('batch_size')}\n")
         file.write(f"lradj: {config.get('lradj')}\n")
-        file.write(f"use_grad_clip: {config.get('use_grad_clip')}\n")
-        file.write(f"grad_clip: {config.get('grad_clip')}\n\n")
 
         file.write("Output paths\n")
         file.write("------------\n")

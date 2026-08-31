@@ -16,9 +16,6 @@ from pandas.tseries.frequencies import to_offset
 
 
 class TimeFeature:
-    """
-    Base class for time features.
-    """
 
     def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
         raise NotImplementedError
@@ -27,76 +24,62 @@ class TimeFeature:
         return self.__class__.__name__ + "()"
 
 
+
 class SecondOfMinute(TimeFeature):
-    """
-    Second of minute encoded as value between [-0.5, 0.5].
-    """
 
     def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
         return index.second / 59.0 - 0.5
 
 
+
 class MinuteOfHour(TimeFeature):
-    """
-    Minute of hour encoded as value between [-0.5, 0.5].
-    """
 
     def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
         return index.minute / 59.0 - 0.5
 
 
-class HourOfDay(TimeFeature):
-    """
-    Hour of day encoded as value between [-0.5, 0.5].
-    """
 
-    def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
+class HourOfDay(TimeFeature):
+
+    def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:      # 23pm is the last hour of the day -> 0.5; 0am is the first hour of the day -> -0.5, 12pm is the middle hour of the day -> 0
         return index.hour / 23.0 - 0.5
 
 
+
 class DayOfWeek(TimeFeature):
-    """
-    Day of week encoded as value between [-0.5, 0.5].
-    """
 
     def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
         return index.dayofweek / 6.0 - 0.5
 
 
+
 class DayOfMonth(TimeFeature):
-    """
-    Day of month encoded as value between [-0.5, 0.5].
-    """
 
     def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
         return (index.day - 1) / 30.0 - 0.5
 
 
+
 class DayOfYear(TimeFeature):
-    """
-    Day of year encoded as value between [-0.5, 0.5].
-    """
 
     def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
         return (index.dayofyear - 1) / 365.0 - 0.5
 
 
+
 class MonthOfYear(TimeFeature):
-    """
-    Month of year encoded as value between [-0.5, 0.5].
-    """
 
     def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
         return (index.month - 1) / 11.0 - 0.5
 
 
+
 class WeekOfYear(TimeFeature):
-    """
-    Week of year encoded as value between [-0.5, 0.5].
-    """
 
     def __call__(self, index: pd.DatetimeIndex) -> np.ndarray:
         return (index.isocalendar().week.astype(float) - 1) / 52.0 - 0.5
+
+
 
 
 def time_features_from_frequency_str(freq_str: str) -> List[TimeFeature]:
@@ -109,7 +92,7 @@ def time_features_from_frequency_str(freq_str: str) -> List[TimeFeature]:
     - "d" or "D": daily
     """
 
-    features_by_offsets = {
+    features_by_offsets = {         # the more data is fine, the more features are extracted
         offsets.YearEnd: [],
         offsets.QuarterEnd: [MonthOfYear],
         offsets.MonthEnd: [MonthOfYear],
@@ -117,24 +100,11 @@ def time_features_from_frequency_str(freq_str: str) -> List[TimeFeature]:
         offsets.Day: [DayOfWeek, DayOfMonth, DayOfYear],
         offsets.BusinessDay: [DayOfWeek, DayOfMonth, DayOfYear],
         offsets.Hour: [HourOfDay, DayOfWeek, DayOfMonth, DayOfYear],
-        offsets.Minute: [
-            MinuteOfHour,
-            HourOfDay,
-            DayOfWeek,
-            DayOfMonth,
-            DayOfYear,
-        ],
-        offsets.Second: [
-            SecondOfMinute,
-            MinuteOfHour,
-            HourOfDay,
-            DayOfWeek,
-            DayOfMonth,
-            DayOfYear,
-        ],
+        offsets.Minute: [MinuteOfHour, HourOfDay, DayOfWeek, DayOfMonth, DayOfYear],
+        offsets.Second: [SecondOfMinute, MinuteOfHour, HourOfDay, DayOfWeek, DayOfMonth, DayOfYear],
     }
 
-    freq_str = freq_str.lower() ### TODO: RICORDA CHE LA NUOVA VERSIONE DI PANDAS USA min PER I MINUTI E NON t
+    freq_str = freq_str.lower()
     freq_map = {
         "y": "YE",
         "a": "YE",
@@ -189,7 +159,7 @@ def time_features(dates, freq="h"):
         Array with shape [num_timesteps, num_time_features].
     """
 
-    dates = pd.to_datetime(dates)
+    dates = pd.to_datetime(dates)       # transform the input dates into a pandas DatetimeIndex object, e.g. ('2023-01-01 00:00:00', '2023-01-01 01:00:00', ...)
 
     if not isinstance(dates, pd.DatetimeIndex):
         dates = pd.DatetimeIndex(dates)

@@ -1,7 +1,3 @@
-"""
-Encoder blocks for Autoformer.
-"""
-
 import torch
 import torch.nn as nn
 
@@ -37,6 +33,7 @@ class EncoderLayer(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
 
+        # Feed-forward network with Conv1d kernel size 1
         self.conv1 = nn.Conv1d(
             in_channels=d_model,
             out_channels=d_ff,
@@ -51,36 +48,30 @@ class EncoderLayer(nn.Module):
         )
         self.activation = nn.ReLU() if activation == "relu" else nn.GELU()
 
+
+
     def forward(self, x):
         # x has shape [batch_size, seq_len, d_model]
 
-        # Self Auto-Correlation: Q, K and V all come from x
-        ### prima cosa che fa: siamo nel caso self quindi Q K e V vengono tutti da x, non cross
+        # Self Auto-Correlation: Q, K and V all come from x. This is the case of encoder self-attention, where the queries, keys and values are all derived from the same input sequence
         autocorr_output = self.autocorrelation_layer(
             queries=x,
             keys=x,
             values=x
         )
 
-        # Residual connection + first decomposition
-        x = x + self.dropout(autocorr_output)
-        x, _ = self.decomp1(x) ### teniamo solo la parte stagionale, la parte trend la buttiamo via
+        x = x + self.dropout(autocorr_output)       # residual connection
+        x, _ = self.decomp1(x)                      # only seasonal part is passed to the next layer, trend part is discarded
 
-        # Feed-forward network with Conv1d kernel size 1
-        # Conv1d expects [batch_size, channels, seq_len]
+        # Feed-forward network
         y = x.transpose(1, 2)
-
         y = self.conv1(y)
         y = self.activation(y)
         y = self.dropout(y)
-
         y = self.conv2(y)
         y = self.dropout(y)
-
-        # Back to [batch_size, seq_len, d_model]
         y = y.transpose(1, 2)
 
-        # Residual connection + second decomposition
         x = x + y
         x, _ = self.decomp2(x)
 
@@ -104,18 +95,16 @@ class Encoder(nn.Module):
 
     def __init__(self, encoder_layers, norm_layer=None):
         super().__init__()
-        ### ModulesList è una lista di moduli pytorch che permette di registrare i moduli in modo che vengano 
-        ### considerati come parte del modello e quindi i loro parametri vengano aggiornati durante l'addestramento
-        self.encoder_layers = nn.ModuleList(encoder_layers)
+
+        self.encoder_layers = nn.ModuleList(encoder_layers)     # ModulesList is a list of encoder layers, each of which is an instance of EncoderLayer. This allows us to stack multiple encoder layers to form the complete encoder
         self.norm_layer = norm_layer
 
     def forward(self, x):
-        # x has shape [batch_size, seq_len, d_model]
 
-        for encoder_layer in self.encoder_layers: ### per ogni encoder layer nella lista di encoder layers, applichiamo il layer all'input x
+        for encoder_layer in self.encoder_layers:
             x = encoder_layer(x)
 
-        if self.norm_layer is not None: ### normalizzazione finale opzionale, se è stata passata una normalizzazione la applichiamo, altrimenti no
+        if self.norm_layer is not None:
             x = self.norm_layer(x)
 
         return x

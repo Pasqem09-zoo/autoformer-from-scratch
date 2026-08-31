@@ -2,6 +2,7 @@
 Main experiment class for Autoformer.
 
 This file contains the training, validation and test logic.
+It builds the model, the data loaders, the optimizer and the loss function.
 """
 
 import os
@@ -20,26 +21,12 @@ from utils.experiment_summary import save_experiment_summary
 
 
 class ExpMain:
-    """
-    Main experiment class.
-
-    It builds:
-    - model
-    - data loaders
-    - optimizer
-    - loss function
-
-    Then it manages:
-    - training
-    - validation
-    - testing
-    """
 
     def __init__(self, config):
         self.config = config
 
         self.device = self._get_device()
-        self.model = self._build_model().to(self.device) ### creiamo Autoformer e lo mandiamo su mps, cuda o cpu
+        self.model = self._build_model().to(self.device)
 
         self.criterion = self._select_criterion()
         self.optimizer = self._select_optimizer()
@@ -92,8 +79,6 @@ class ExpMain:
     def _select_optimizer(self):
         """
         Select optimizer.
-
-        The official Autoformer code uses Adam.
         """
 
         optimizer = torch.optim.Adam(
@@ -113,7 +98,7 @@ class ExpMain:
         - "test"
         """
 
-        if flag == "train": ### shuffle=True solo per il training. Validation e test invece devono restare ordinati, così la valutazione è più pulita e riproducibile
+        if flag == "train":
             shuffle = True
         else:
             shuffle = False
@@ -157,7 +142,7 @@ class ExpMain:
             dim=1
         ).float().to(self.device)
 
-        output = self.model(
+        output = self.model( # call Autoformer model and get the predictions
             batch_x,
             batch_x_mark,
             dec_inp,
@@ -170,15 +155,15 @@ class ExpMain:
 
     def validate(self, val_loader):
         """
-        Evaluate the model on validation data.
+        Evaluate the model on validation set and return the average loss.
         """
 
-        self.model.eval() ### mette il modello in modalità evaluation
+        self.model.eval()
 
         total_loss = 0.0
         num_batches = 0
 
-        with torch.no_grad(): ### dice a PyTorch: “non salvare il grafo computazionale e non calcolare gradienti”
+        with torch.no_grad(): # no gradient calculation during validation
             for batch in val_loader:
                 batch_x, batch_y, batch_x_mark, batch_y_mark = batch
 
@@ -187,7 +172,6 @@ class ExpMain:
                 batch_x_mark = batch_x_mark.to(self.device)
                 batch_y_mark = batch_y_mark.to(self.device)
 
-                ### la loss va calcolata solo sulla parte futura vera, cioè sugli ultimi pred_len punti
                 output, target = self._predict(
                     batch_x,
                     batch_y,
@@ -203,22 +187,28 @@ class ExpMain:
 
         self.model.train()
 
-        return average_loss ### in pratica questa funzione restituisce la loss media sui batch di validation. Serve per capire se il modello sta migliorando o peggiorando durante il training
+        return average_loss
 
 
     def train(self):
         """
         Train the model.
-        cuore del file: prende i dati, fa epoche di training, calcola validation loss, usa early stopping, salva il checkpoint migliore e aggiorna il learning rate.
+
+        It takes care of:
+        - training epochs
+        - validation loss calculation
+        - early stopping
+        - saving the best checkpoint
+        - learning rate adjustment
         """
 
-        train_dataset, train_loader = self._get_data("train") ### otteniamo il dataset e il dataloader per il training
+        train_dataset, train_loader = self._get_data("train")
         val_dataset, val_loader = self._get_data("val")
         self.train_size = len(train_dataset)
         self.val_size = len(val_dataset)
         self.train_steps = len(train_loader)
 
-        checkpoint_dir = self.config.get("checkpoint_dir", "checkpoints") ### directory dove salvare i pesi del modello. Se non è specificata nel config, usa "checkpoints" come default
+        checkpoint_dir = self.config.get("checkpoint_dir", "checkpoints") # directory where to save model weights. If not specified in config, use "checkpoints" as default
         os.makedirs(checkpoint_dir, exist_ok=True)
 
         early_stopping = EarlyStopping(
@@ -229,12 +219,12 @@ class ExpMain:
         train_epochs = self.config["epochs"]
         train_steps = self.train_steps
 
-        ### salviamo un file di testo con il riepilogo della configurazione dell'esperimento, le loss per epoca e i risultati finali sul test set
+        # saving the experiment summary will be done in the test() method, after the test is completed
         self.epoch_history = []
 
-        for epoch in range(1, train_epochs + 1): ### questo ciclo fa le epoche di training
-            start_time = time.time() ### serve per misurare quanto tempo impiega un'epoca di training
-            time_now = time.time()
+        for epoch in range(1, train_epochs + 1): # loop over epochs
+            start_time = time.time() # start time of the epoch
+            time_now = time.time() # start time of the batch iteration
             
             self.model.train()
 
@@ -242,7 +232,7 @@ class ExpMain:
             num_batches = 0
             iter_count = 0
 
-            for batch_idx, batch in enumerate(train_loader):
+            for batch_idx, batch in enumerate(train_loader): # loop over batches in the Dataloader training set: batch_idx is the index of the batch, batch is a tuple containing (batch_x, batch_y, batch_x_mark, batch_y_mark)
                 batch_x, batch_y, batch_x_mark, batch_y_mark = batch
 
                 batch_x = batch_x.to(self.device)
@@ -252,7 +242,7 @@ class ExpMain:
 
                 self.optimizer.zero_grad()
 
-                output, target = self._predict( ### ### [B, pred_len, c_out]
+                output, target = self._predict( # [B, pred_len, c]
                     batch_x,
                     batch_y,
                     batch_x_mark,
@@ -261,20 +251,13 @@ class ExpMain:
 
                 loss = self.criterion(output, target)
                 loss.backward()
-
-                if self.config.get("use_grad_clip", False): ### TODO: NEL CODICE DEGLI AUTORI NON C'è
-                    torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(),
-                        max_norm=self.config.get("grad_clip", 1.0)
-                    )
-
                 self.optimizer.step()
 
-                total_train_loss += loss.item() ### loss media sui batch di training
+                total_train_loss += loss.item() # loss of the current batch in the current epoch
                 num_batches += 1
                 iter_count += 1
 
-                if (batch_idx + 1) % 100 == 0: ### ogni 100 batch stampiamo la loss dell'ultimo batch e stimiamo quanto tempo manca alla fine del training
+                if (batch_idx + 1) % 100 == 0: # every 100 batches print the loss of the last batch and estimate how much time is left until the end of training
                     print(
                         "\titers: {0}, epoch: {1} | loss: {2:.7f}".format(
                             batch_idx + 1,
@@ -300,22 +283,31 @@ class ExpMain:
                         })
 
                     iter_count = 0
+                    time_now = time.time() # end of the batch iteration, reset the timer for the next 100 batches
+
+                    if self.config.get("wandb_enabled", False):
+                        epoch_progress = epoch + (batch_idx + 1) / train_steps
+                        wandb.log({
+                            "epoch_progress": epoch_progress,
+                            "batch_loss_every_100": loss.item()
+                        })
+
+                    iter_count = 0
                     time_now = time.time()
 
-            train_loss = total_train_loss / num_batches ### loss media sui batch di training di 1 epoca
-            val_loss = self.validate(val_loader) ### loss media sui batch di validation di 1 epoca
+            train_loss = total_train_loss / num_batches # average loss over all batches in the current epoch
+            val_loss = self.validate(val_loader) # average loss over all batches in the validation set, in the current epoch
 
             epoch_time = time.time() - start_time
 
-            print( ### statistiche di training e validation per 1 epoca
+            print(
                 f"Epoch {epoch}/{train_epochs} | "
                 f"train loss: {train_loss:.6f} | "
                 f"val loss: {val_loss:.6f} | "
                 f"time: {epoch_time:.2f}s"
             )
 
-            ### salviamo le informazioni dell'epoca corrente in un dizionario e lo aggiungiamo alla lista epoch_history
-            self.epoch_history.append({
+            self.epoch_history.append({ # save epoch history for later analysis and for saving the experiment summary at the end of training
                 "epoch": epoch,
                 "train_loss": train_loss,
                 "val_loss": val_loss,
@@ -334,7 +326,7 @@ class ExpMain:
                         "learning_rate": self.optimizer.param_groups[0]["lr"]
                 })
 
-            early_stopping( ### “guarda la validation loss appena ottenuta; se è la migliore finora, salva il modello”; se la val.loss non migliora per "patience" epoche consecutive, ferma il training
+            early_stopping(
                 val_loss=val_loss,
                 model=self.model,
                 path=checkpoint_dir
@@ -345,27 +337,26 @@ class ExpMain:
                 self.early_stopped = True
                 break
 
-            adjust_learning_rate( ### aggiorna il lr secondo la strategia scelta (type1, type2, ecc)
+            adjust_learning_rate(   # adjust the learning rate according to the schedule specified in the config file
                 optimizer=self.optimizer,
                 epoch=epoch,
                 learning_rate=self.config["learning_rate"],
                 lradj=self.config.get("lradj", "type1")
             )
 
-        ### “ok, il training è finito; ricarico i pesi migliori, non necessariamente quelli dell’ultima epoca”
-        best_model_path = os.path.join(checkpoint_dir, "checkpoint.pth") ### salva i pesi del modello migliore (cioè quello con la val.loss più bassa) in checkpoint.pth***
-        self.model.load_state_dict(
+        best_model_path = os.path.join(checkpoint_dir, "checkpoint.pth")    # checkpoint.pth contains the best model weights***
+        self.model.load_state_dict(     # load the best model weights after training is complete, not necessarily the weights from the last epoch
             torch.load(best_model_path, map_location=self.device)
         )
-        ### *** epoca 1
-            # training su tutti i batch
-            # → calcoliamo train_loss media
+        # *** epoch 1
+            # training on all batches
+            # → calculate average train_loss
 
-            # validation su tutti i batch di validation
-            # → calcoliamo val_loss media
+            # validation on all validation batches
+            # → calculate average val_loss
 
-            # EarlyStopping guarda questa val_loss
-            # → se è la migliore finora, salva checkpoint.pth
+            # EarlyStopping looks at this val_loss
+            # → if it's the best so far, save checkpoint.pth
 
         return self.model
 
@@ -377,14 +368,6 @@ class ExpMain:
         It computes:
         - MAE
         - MSE
-
-        carica il best checkpoint
-        scorre il test_loader
-        fa predizioni
-        salva predizioni e target veri
-        calcola MAE e MSE
-        stampa i risultati
-        salva tutto in results/
         """
 
         test_dataset, test_loader = self._get_data("test")
@@ -406,7 +389,7 @@ class ExpMain:
         self.model.eval()
 
         with torch.no_grad():
-            for batch in test_loader: ### questo ciclo scorre tutti i batch del test_loader, fa predizioni e salva le predizioni e i target veri in due liste separate
+            for batch in test_loader:
                 batch_x, batch_y, batch_x_mark, batch_y_mark = batch
 
                 batch_x = batch_x.to(self.device)
@@ -414,7 +397,7 @@ class ExpMain:
                 batch_x_mark = batch_x_mark.to(self.device)
                 batch_y_mark = batch_y_mark.to(self.device)
 
-                output, target = self._predict( ### anche nel test usiamo lo stesso identico meccanismo degli autori: decoder input con parte nota + zeri futuri
+                output, target = self._predict(
                     batch_x,
                     batch_y,
                     batch_x_mark,
@@ -445,9 +428,8 @@ class ExpMain:
                 "test_mae": mae_score
             })
 
-        results_dir = self.config.get("results_dir", "results") ### chiamo la directory dove salvare i risultati il cui nome è nel config, altrimenti uso "results" come default
+        results_dir = self.config.get("results_dir", "results") # directory where to save the test results. If not specified in config, use "results" as default
         os.makedirs(results_dir, exist_ok=True)
-
         np.save(
             os.path.join(results_dir, "metrics.npy"),
             np.array([mae_score, mse_score])

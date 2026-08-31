@@ -1,9 +1,10 @@
 """
 Utility functions for training and experiments:
+
 1. set_seed: Set random seed for reproducibility.
-2. clip_grad_norm_: Clip gradients to prevent exploding gradients.
-3. save_checkpoint: Save model checkpoint.
-4. load_checkpoint: Load model checkpoint.
+2. EarlyStopping: Class to implement early stopping during training.
+3. adjust_learning_rate: Adjust learning rate during training.
+4. save_checkpoint: Save model checkpoint.
 5. count_parameters: Count the number of trainable parameters in a model.
 """
 
@@ -13,9 +14,6 @@ import torch
 
 
 def set_seed(seed):
-    """
-    Set random seed for reproducibility.
-    """
 
     random.seed(seed)
     np.random.seed(seed)
@@ -43,31 +41,35 @@ class EarlyStopping:
         self.early_stop = False
         self.val_loss_min = np.inf
 
+
+
     def __call__(self, val_loss, model, path):
         """
         Check if validation loss improved.
         If it improved, save the model.
         """
 
-        score = -val_loss   ### siccome vuoi sempre una val.loss minore, facendo cosi una loss piu piccola diventa uno score piu grande
+        score = -val_loss
 
-        if self.best_score is None: ### prima volta che viene chiamata la funzione, quindi non c'è ancora uno score migliore
+        if self.best_score is None:
             self.best_score = score
             self.save_checkpoint(val_loss, model, path)
 
-        elif score < self.best_score + self.delta: ### se lo score attuale è peggiore dello score migliore + delta, allora non c'è miglioramento
+        elif score < self.best_score + self.delta:      # worst score, no improvement
             self.counter += 1
 
-            if self.verbose: ### stampa il numero di volte consecutive che la loss non è migliorata
+            if self.verbose:
                 print(f"EarlyStopping counter: {self.counter}/{self.patience}")
 
-            if self.counter >= self.patience: ### se il numero di volte consecutive che la loss non è migliorata supera patience, allora ferma il training
+            if self.counter >= self.patience:
                 self.early_stop = True
 
-        else: ### se lo score attuale è migliore dello score migliore + delta, allora c'è miglioramento
+        else:                                           # best score, improvement
             self.best_score = score
             self.save_checkpoint(val_loss, model, path)
             self.counter = 0
+
+
 
     def save_checkpoint(self, val_loss, model, path):
         """
@@ -80,7 +82,7 @@ class EarlyStopping:
                 f"({self.val_loss_min:.6f} --> {val_loss:.6f}). Saving model..."
             )
 
-        torch.save(model.state_dict(), path + "/checkpoint.pth") ### salva i pesi del modello MIGLIORE in un file checkpoint.pth nella cartella path
+        torch.save(model.state_dict(), path + "/checkpoint.pth")
         self.val_loss_min = val_loss
 
 

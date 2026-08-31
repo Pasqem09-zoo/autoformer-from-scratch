@@ -1,9 +1,8 @@
 """
-questo blocco implementa la decomposizione di una serie temporale in due componenti: stagionale e di trend. 
-La componente di trend viene calcolata utilizzando una media mobile con un kernel di dimensione specificata, 
-mentre la componente stagionale è ottenuta sottraendo la componente di trend dalla serie originale.
+This module implements the series decomposition block used in the Autoformer model. It decomposes a time series into its seasonal and trend components using a moving average.
+The trend component is calculated using a moving average with a specified kernel size, while the seasonal component is obtained by subtracting the trend component from the original series.
 
-stiamo implementando il blocco SeriesDecomp, che prende in input una serie temporale e restituisce due componenti: la componente stagionale e la componente di trend.
+This is the SeriesDecomp block, which takes a time series as input and returns two components: the seasonal component and the trend component.
 """
 
 
@@ -14,11 +13,11 @@ import torch.nn as nn
 
 class MovingAvg(nn.Module):
     """
-    è la componente di trend della decomposizione, calcola la media mobile del trend della serie temporale, 
-    utilizzando un kernel di dimensione kernel_size. il kernel è applicato con stride 1 e padding 0, quindi la 
-    lunghezza della sequenza in output sarà inferiore a quella in input di kernel_size - 1.
-    
-    La media mobile viene calcolata con padding sui bordi della sequenza per mantenere la stessa lunghezza dell'input.
+    Moving average block to extract the trend component of a time series.
+
+    It uses a 1D average pooling operation to compute the moving average over the input sequence.
+    The input sequence is padded on both sides to maintain the same length after pooling.
+    The moving average is computed using a specified kernel size and stride.
     """
 
     def __init__(self, kernel_size, stride):
@@ -32,16 +31,17 @@ class MovingAvg(nn.Module):
             padding=0
         )
 
+
+
     def forward(self, x):
         # x has shape [batch_size, seq_len, channels]
 
-        # Padding on both ends of the time series
-        padding_size = (self.kernel_size - 1) // 2
+        padding_size = (self.kernel_size - 1) // 2      # number of elements to pad on each side of the sequence to maintain the same length after pooling
 
-        # padding
+        # Pad the input sequence on both sides with the first and last values to maintain the same length after pooling
         front = x[:, 0:1, :].repeat(1, padding_size, 1)
         end = x[:, -1:, :].repeat(1, padding_size, 1)
-        x = torch.cat([front, x, end], dim=1)
+        x = torch.cat([front, x, end], dim=1)           # concatenate the padded values along the sequence length dimension
 
         # AvgPool1d expects [batch_size, channels, seq_len]
         x = x.permute(0, 2, 1)
@@ -71,9 +71,10 @@ class SeriesDecomp(nn.Module):
             stride=1
         )
 
-    #separazione molto semplice: prende la serie originale, ne estrae una versione smussata tramite media mobile, e considera il resto come componente stagionale/residuale
+
+
     def forward(self, x):
         moving_mean = self.moving_avg(x)
-        residual = x - moving_mean
+        residual = x - moving_mean      # original series and moving average have the same shape, so we can subtract them element-wise
 
         return residual, moving_mean

@@ -1,100 +1,37 @@
-# =============================
-# General setup
-# =============================
-
-experiment_name:  "ili_60_lr1e4_10epochs_freqh"      # name of this experiment
-seed: 3097                             # random seed for reproducibility
-
-
-# =============================
-# Dataset
-# =============================
-
-dataset: "ILI"                       # dataset used for the first debug experiment
-data_path: "data/raw/illness/national_illness.csv"       # path to the raw csv file
-
-features: "M"                          # "M" = multivariate forecasting
-target: "OT"                           # target column used in ETT datasets
-results_dir: "results/ili_60_lr1e4_10epochs_freqh"       # directory where to save results
-
-
-# =============================
-# Sequence lengths
-# =============================
-
-seq_len: 36                            # input length given to the encoder
-label_len: 18                          # known past part given to the decoder
-pred_len: 60                           # forecasting horizon
-
-# Decoder length is not written directly in the config.
-# It will be computed in the code as:
-# dec_len = label_len + pred_len
-
-
-# =============================
-# Model: Autoformer
-# =============================
-
-model: "Autoformer"                    # model name
-
-d_model: 512                           # internal model dimension
-n_heads: 8                             # number of Auto-Correlation heads
-enc_layers: 2                          # number of encoder layers
-dec_layers: 1                          # number of decoder layers
-d_ff: 2048                             # hidden dimension of feed-forward layers
-dropout: 0.05                          # dropout used in embedding and model blocks
-
-moving_avg: 25                         # moving average window used in SeriesDecomp
-c: 3                                   # factor c used for top-k delays in Auto-Correlation 
-
+experiment_name:  "ili_60_lr1e4_10epochs"
+seed: 3097
+dataset: "ILI"
+data_path: "data/raw/illness/national_illness.csv"
+features: "M"
+target: "OT"
+results_dir: "results/ili_60_lr1e4_10epochs"
+seq_len: 36
+label_len: 18
+pred_len: 60
+model: "Autoformer"
+d_model: 512
+n_heads: 8
+enc_layers: 2
+dec_layers: 1
+d_ff: 2048
+dropout: 0.05
+moving_avg: 25
+c: 3
 activation: "gelu"
-
-# =============================
-# Input / output dimensions
-# =============================
-
-enc_in: 7                              # number of input variables for the encoder
-dec_in: 7                              # number of input variables for the decoder
-c_out: 7                               # number of output variables
-
-
-# =============================
-# Embedding
-# =============================
-
-embed: "timeF"                         # use numerical time features
-freq: "h"                              # time frequency: "t" = minutely/15-min features for ETTm2, other datasets are used to use "h" = hourly features
-
-
-# =============================
-# Training
-# =============================
-
-batch_size: 32                         # number of samples per batch
-learning_rate: 0.0001                 # optimizer learning rate, lr = 1e-4 official
-epochs: 10                             # maximum number of training epochs
-patience: 3                            # early stopping patience
-lradj: "type1"                         # learning rate adjustment strategy
-
-use_grad_clip: false                    # whether to use gradient clipping
-grad_clip: 1.0                         # maximum norm for gradient clipping
-
-checkpoint_dir: "checkpoints/ili_60_lr1e4_10epochs_freqh" # directory where to save best model checkpoint
-
-
-# =============================
-# Device
-# =============================
-
-use_mps: true                          # use Apple Silicon GPU if available
-use_cuda: true                         # use CUDA GPU if available
-use_cpu: true                          # fallback to CPU if no GPU backend is available
-
-
-# =============================
-# Weights & Biases
-# =============================
-
-wandb_enabled: true                    # enable W&B logging, true = log metrics to W&B, false = no logging
+enc_in: 7
+dec_in: 7
+c_out: 7
+embed: "timeF"
+freq: "h"
+batch_size: 32
+learning_rate: 0.0001
+epochs: 10
+patience: 3
+lradj: "type1"
+checkpoint_dir: "checkpoints/ili_60_lr1e4_10epochs"
+use_mps: true
+use_cuda: true
+use_cpu: true
+wandb_enabled: true
 wandb_project: "autoformer-from-scratch"
-wandb_run_name: "ili_60_10epochs_freqh"
+wandb_run_name: "ili_60"
