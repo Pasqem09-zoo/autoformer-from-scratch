@@ -1,0 +1,78 @@
+Experiment summary
+==================
+
+General information
+-------------------
+experiment_name: ettm2_96_lr1e4_10epochs
+dataset: ETTm2
+data_path: data/raw/ETTm2.csv
+features: M
+target: OT
+freq: t
+device: cuda
+
+Dataset sizes
+-------------
+train_size: 34369
+val_size: 11425
+test_size: 11425
+train_steps_per_epoch: 1074
+
+Forecasting setup
+-----------------
+seq_len: 96
+label_len: 48
+pred_len: 96
+
+Model configuration
+-------------------
+model: Autoformer
+d_model: 512
+n_heads: 8
+enc_layers: 2
+dec_layers: 1
+d_ff: 2048
+moving_avg: 25
+factor_c: 1
+dropout: 0.05
+embed: timeF
+activation: gelu
+
+Training configuration
+----------------------
+learning_rate: 0.0001
+epochs: 10
+patience: 3
+batch_size: 32
+lradj: type1
+use_grad_clip: False
+grad_clip: 1.0
+
+Output paths
+------------
+checkpoint_dir: checkpoints/ettm2_96_lr1e4_10epochs
+results_dir: results/ettm2_96_lr1e4_10epochs
+checkpoint_file: checkpoints/ettm2_96_lr1e4_10epochs/checkpoint.pth
+predictions_file: results/ettm2_96_lr1e4_10epochs/pred.npy
+targets_file: results/ettm2_96_lr1e4_10epochs/true.npy
+metrics_file: results/ettm2_96_lr1e4_10epochs/metrics.npy
+loss_plot_file: results/ettm2_96_lr1e4_10epochs/loss_curve.png
+
+Epoch history
+-------------
+epoch, train_loss, val_loss, epoch_time_seconds, learning_rate
+1, 0.270959, 0.155236, 114.52, 0.0001
+2, 0.237476, 0.186626, 120.52, 0.0001
+3, 0.206388, 0.196737, 122.57, 5e-05
+4, 0.190095, 0.197999, 122.52, 2.5e-05
+
+Best validation checkpoint
+--------------------------
+best_epoch: 1
+best_val_loss: 0.155236
+early_stopped: True
+
+Final test metrics
+------------------
+test_mse: 0.226320
+test_mae: 0.311904

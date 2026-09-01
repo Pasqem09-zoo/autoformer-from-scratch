@@ -1,0 +1,76 @@
+Experiment summary
+==================
+
+General information
+-------------------
+experiment_name: weather_336_lr1e4_2epochs_freqh
+dataset: Weather
+data_path: data/raw/weather/weather.csv
+features: M
+target: OT
+freq: h
+device: cuda
+
+Dataset sizes
+-------------
+train_size: 36456
+val_size: 4935
+test_size: 10204
+train_steps_per_epoch: 1139
+
+Forecasting setup
+-----------------
+seq_len: 96
+label_len: 48
+pred_len: 336
+
+Model configuration
+-------------------
+model: Autoformer
+d_model: 512
+n_heads: 8
+enc_layers: 2
+dec_layers: 1
+d_ff: 2048
+moving_avg: 25
+factor_c: 3
+dropout: 0.05
+embed: timeF
+activation: gelu
+
+Training configuration
+----------------------
+learning_rate: 0.0001
+epochs: 2
+patience: 3
+batch_size: 32
+lradj: type1
+use_grad_clip: False
+grad_clip: 1.0
+
+Output paths
+------------
+checkpoint_dir: checkpoints/weather_336_lr1e4_2epochs_freqh
+results_dir: results/weather_336_lr1e4_2epochs_freqh
+checkpoint_file: checkpoints/weather_336_lr1e4_2epochs_freqh/checkpoint.pth
+predictions_file: results/weather_336_lr1e4_2epochs_freqh/pred.npy
+targets_file: results/weather_336_lr1e4_2epochs_freqh/true.npy
+metrics_file: results/weather_336_lr1e4_2epochs_freqh/metrics.npy
+loss_plot_file: results/weather_336_lr1e4_2epochs_freqh/loss_curve.png
+
+Epoch history
+-------------
+epoch, train_loss, val_loss, epoch_time_seconds, learning_rate
+1, 0.661124, 0.678068, 287.37, 0.0001
+2, 0.603609, 0.688173, 295.71, 0.0001
+
+Best validation checkpoint
+--------------------------
+best_epoch: 1
+best_val_loss: 0.678068
+early_stopped: False
+
+Final test metrics
+------------------
+test_mse: 0.364687
+test_mae: 0.405623

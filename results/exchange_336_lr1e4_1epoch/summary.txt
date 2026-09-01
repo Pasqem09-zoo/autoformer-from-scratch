@@ -1,0 +1,75 @@
+Experiment summary
+==================
+
+General information
+-------------------
+experiment_name: exchange_336_lr1e4_1epochs
+dataset: Exchange
+data_path: data/raw/exchange_rate/exchange_rate.csv
+features: M
+target: OT
+freq: d
+device: cuda
+
+Dataset sizes
+-------------
+train_size: 4880
+val_size: 425
+test_size: 1182
+train_steps_per_epoch: 152
+
+Forecasting setup
+-----------------
+seq_len: 96
+label_len: 48
+pred_len: 336
+
+Model configuration
+-------------------
+model: Autoformer
+d_model: 512
+n_heads: 8
+enc_layers: 2
+dec_layers: 1
+d_ff: 2048
+moving_avg: 25
+factor_c: 3
+dropout: 0.05
+embed: timeF
+activation: gelu
+
+Training configuration
+----------------------
+learning_rate: 0.0001
+epochs: 1
+patience: 3
+batch_size: 32
+lradj: type1
+use_grad_clip: False
+grad_clip: 1.0
+
+Output paths
+------------
+checkpoint_dir: checkpoints/exchange_336_lr1e4_1epochs
+results_dir: results/exchange_336_lr1e4_1epochs
+checkpoint_file: checkpoints/exchange_336_lr1e4_1epochs/checkpoint.pth
+predictions_file: results/exchange_336_lr1e4_1epochs/pred.npy
+targets_file: results/exchange_336_lr1e4_1epochs/true.npy
+metrics_file: results/exchange_336_lr1e4_1epochs/metrics.npy
+loss_plot_file: results/exchange_336_lr1e4_1epochs/loss_curve.png
+
+Epoch history
+-------------
+epoch, train_loss, val_loss, epoch_time_seconds, learning_rate
+1, 0.516476, 0.451538, 36.58, 0.0001
+
+Best validation checkpoint
+--------------------------
+best_epoch: 1
+best_val_loss: 0.451538
+early_stopped: False
+
+Final test metrics
+------------------
+test_mse: 0.442639
+test_mae: 0.494495

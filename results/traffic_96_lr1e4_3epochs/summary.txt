@@ -1,0 +1,74 @@
+Experiment summary
+==================
+
+General information
+-------------------
+experiment_name: traffic_96_lr1e4_3epochs
+dataset: Traffic
+data_path: data/raw/traffic/traffic.csv
+features: M
+target: OT
+freq: h
+device: cuda
+
+Dataset sizes
+-------------
+train_size: 12089
+val_size: 1661
+test_size: 3413
+train_steps_per_epoch: 377
+
+Forecasting setup
+-----------------
+seq_len: 96
+label_len: 48
+pred_len: 96
+
+Model configuration
+-------------------
+model: Autoformer
+d_model: 512
+n_heads: 8
+enc_layers: 2
+dec_layers: 1
+d_ff: 2048
+moving_avg: 25
+factor_c: 3
+dropout: 0.05
+embed: timeF
+activation: gelu
+
+Training configuration
+----------------------
+learning_rate: 0.0001
+epochs: 3
+patience: 3
+batch_size: 32
+lradj: type1
+Output paths
+------------
+checkpoint_dir: /tmp/inginf2026emapas_traffic_96_checkpoint
+results_dir: results/traffic_96_lr1e4_3epochs
+checkpoint_file: /tmp/inginf2026emapas_traffic_96_checkpoint/checkpoint.pth
+predictions_file: results/traffic_96_lr1e4_3epochs/pred.npy
+targets_file: results/traffic_96_lr1e4_3epochs/true.npy
+metrics_file: results/traffic_96_lr1e4_3epochs/metrics.npy
+loss_plot_file: results/traffic_96_lr1e4_3epochs/loss_curve.png
+
+Epoch history
+-------------
+epoch, train_loss, val_loss, epoch_time_seconds, learning_rate
+1, 0.399160, 0.553530, 61.38, 0.0001
+2, 0.266162, 0.504024, 62.12, 0.0001
+3, 0.238510, 0.498479, 62.38, 5e-05
+
+Best validation checkpoint
+--------------------------
+best_epoch: 3
+best_val_loss: 0.498479
+early_stopped: False
+
+Final test metrics
+------------------
+test_mse: 0.637362
+test_mae: 0.398426

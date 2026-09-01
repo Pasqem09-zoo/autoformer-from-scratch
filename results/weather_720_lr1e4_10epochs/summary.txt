@@ -1,0 +1,78 @@
+Experiment summary
+==================
+
+General information
+-------------------
+experiment_name: weather_720_lr1e4_10epochs
+dataset: Weather
+data_path: data/raw/weather/weather.csv
+features: M
+target: OT
+freq: t
+device: cuda
+
+Dataset sizes
+-------------
+train_size: 36072
+val_size: 4551
+test_size: 9820
+train_steps_per_epoch: 1127
+
+Forecasting setup
+-----------------
+seq_len: 96
+label_len: 48
+pred_len: 720
+
+Model configuration
+-------------------
+model: Autoformer
+d_model: 512
+n_heads: 8
+enc_layers: 2
+dec_layers: 1
+d_ff: 2048
+moving_avg: 25
+factor_c: 3
+dropout: 0.05
+embed: timeF
+activation: gelu
+
+Training configuration
+----------------------
+learning_rate: 0.0001
+epochs: 10
+patience: 3
+batch_size: 32
+lradj: type1
+use_grad_clip: False
+grad_clip: 1.0
+
+Output paths
+------------
+checkpoint_dir: checkpoints/weather_720_lr1e4_10epochs
+results_dir: results/weather_720_lr1e4_10epochs
+checkpoint_file: checkpoints/weather_720_lr1e4_10epochs/checkpoint.pth
+predictions_file: results/weather_720_lr1e4_10epochs/pred.npy
+targets_file: results/weather_720_lr1e4_10epochs/true.npy
+metrics_file: results/weather_720_lr1e4_10epochs/metrics.npy
+loss_plot_file: results/weather_720_lr1e4_10epochs/loss_curve.png
+
+Epoch history
+-------------
+epoch, train_loss, val_loss, epoch_time_seconds, learning_rate
+1, 0.749624, 0.784640, 532.04, 0.0001
+2, 0.665779, 0.791009, 537.33, 0.0001
+3, 0.624068, 0.792001, 537.73, 5e-05
+4, 0.606954, 0.810377, 537.80, 2.5e-05
+
+Best validation checkpoint
+--------------------------
+best_epoch: 1
+best_val_loss: 0.784640
+early_stopped: True
+
+Final test metrics
+------------------
+test_mse: 0.410205
+test_mae: 0.426098

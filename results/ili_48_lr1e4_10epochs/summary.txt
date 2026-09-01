@@ -1,0 +1,84 @@
+Experiment summary
+==================
+
+General information
+-------------------
+experiment_name: ili_48_lr1e4_10epochs_freqh
+dataset: ILI
+data_path: data/raw/illness/national_illness.csv
+features: M
+target: OT
+freq: h
+device: cuda
+
+Dataset sizes
+-------------
+train_size: 593
+val_size: 50
+test_size: 146
+train_steps_per_epoch: 18
+
+Forecasting setup
+-----------------
+seq_len: 36
+label_len: 18
+pred_len: 48
+
+Model configuration
+-------------------
+model: Autoformer
+d_model: 512
+n_heads: 8
+enc_layers: 2
+dec_layers: 1
+d_ff: 2048
+moving_avg: 25
+factor_c: 3
+dropout: 0.05
+embed: timeF
+activation: gelu
+
+Training configuration
+----------------------
+learning_rate: 0.0001
+epochs: 10
+patience: 3
+batch_size: 32
+lradj: type1
+use_grad_clip: False
+grad_clip: 1.0
+
+Output paths
+------------
+checkpoint_dir: checkpoints/ili_48_lr1e4_10epochs_freqh
+results_dir: results/ili_48_lr1e4_10epochs_freqh
+checkpoint_file: checkpoints/ili_48_lr1e4_10epochs_freqh/checkpoint.pth
+predictions_file: results/ili_48_lr1e4_10epochs_freqh/pred.npy
+targets_file: results/ili_48_lr1e4_10epochs_freqh/true.npy
+metrics_file: results/ili_48_lr1e4_10epochs_freqh/metrics.npy
+loss_plot_file: results/ili_48_lr1e4_10epochs_freqh/loss_curve.png
+
+Epoch history
+-------------
+epoch, train_loss, val_loss, epoch_time_seconds, learning_rate
+1, 0.913980, 0.444846, 1.49, 0.0001
+2, 0.695233, 0.340939, 1.03, 0.0001
+3, 0.609294, 0.293786, 1.05, 5e-05
+4, 0.570684, 0.284777, 1.09, 2.5e-05
+5, 0.561592, 0.275470, 1.05, 1.25e-05
+6, 0.556847, 0.272875, 1.09, 6.25e-06
+7, 0.551890, 0.270302, 1.07, 3.125e-06
+8, 0.542985, 0.270417, 1.08, 1.5625e-06
+9, 0.533260, 0.269932, 1.05, 7.8125e-07
+10, 0.550134, 0.269827, 1.09, 3.90625e-07
+
+Best validation checkpoint
+--------------------------
+best_epoch: 10
+best_val_loss: 0.269827
+early_stopped: False
+
+Final test metrics
+------------------
+test_mse: 2.968705
+test_mae: 1.135123

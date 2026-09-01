@@ -1,0 +1,81 @@
+Experiment summary
+==================
+
+General information
+-------------------
+experiment_name: electricity_192_lr1e4_10epochs
+dataset: Electricity
+data_path: data/raw/electricity_official/electricity.csv
+features: M
+target: OT
+freq: h
+device: cuda
+
+Dataset sizes
+-------------
+train_size: 18125
+val_size: 2441
+test_size: 5069
+train_steps_per_epoch: 566
+
+Forecasting setup
+-----------------
+seq_len: 96
+label_len: 48
+pred_len: 192
+
+Model configuration
+-------------------
+model: Autoformer
+d_model: 512
+n_heads: 8
+enc_layers: 2
+dec_layers: 1
+d_ff: 2048
+moving_avg: 25
+factor_c: 3
+dropout: 0.05
+embed: timeF
+activation: gelu
+
+Training configuration
+----------------------
+learning_rate: 0.0001
+epochs: 10
+patience: 3
+batch_size: 32
+lradj: type1
+use_grad_clip: False
+grad_clip: 1.0
+
+Output paths
+------------
+checkpoint_dir: checkpoints/electricity_192_lr1e4_10epochs
+results_dir: results/electricity_192_lr1e4_10epochs
+checkpoint_file: checkpoints/electricity_192_lr1e4_10epochs/checkpoint.pth
+predictions_file: results/electricity_192_lr1e4_10epochs/pred.npy
+targets_file: results/electricity_192_lr1e4_10epochs/true.npy
+metrics_file: results/electricity_192_lr1e4_10epochs/metrics.npy
+loss_plot_file: results/electricity_192_lr1e4_10epochs/loss_curve.png
+
+Epoch history
+-------------
+epoch, train_loss, val_loss, epoch_time_seconds, learning_rate
+1, 0.298342, 0.210962, 108.29, 0.0001
+2, 0.205494, 0.261834, 112.94, 0.0001
+3, 0.208699, 0.183788, 114.93, 5e-05
+4, 0.168425, 0.178765, 114.89, 2.5e-05
+5, 0.162554, 0.180317, 114.62, 1.25e-05
+6, 0.159684, 0.181239, 114.72, 6.25e-06
+7, 0.158129, 0.180854, 115.02, 3.125e-06
+
+Best validation checkpoint
+--------------------------
+best_epoch: 4
+best_val_loss: 0.178765
+early_stopped: True
+
+Final test metrics
+------------------
+test_mse: 0.213100
+test_mae: 0.321610

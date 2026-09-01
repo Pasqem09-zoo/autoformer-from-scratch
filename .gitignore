@@ -230,21 +230,19 @@ env/
 .vscode/
 
 ### DATASETS ###
-data/raw/*.csv
-
-### RAW DATASETS ###
 data/raw/
 
 ### MODEL CHECKPOINTS ###
-checkpoints/*
-!checkpoints/.gitkeep
-
-### EXPERIMENT OUTPUTS ###
-results/*
-!results/.gitkeep
+checkpoints/
 
 ### WANDB LOCAL LOGS ###
 wandb/
 
+### OLD / TEMPORARY RUNS ###
 old_runs_before_wandb_fix/
-old_runs_before_wandb_fix/
+
+### EXPERIMENT OUTPUTS ###
+# Keep lightweight result files in the repository.
+# Ignore only large prediction arrays.
+results/*/pred.npy
+results/*/true.npy
