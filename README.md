@@ -61,13 +61,7 @@ where $\mathcal{T}$ is the set of selected time delays, $w_{\tau}$ is the import
 
 The decoder maintains two paths: a seasonal path and a trend path. During decoding, the model progressively updates both components. The final prediction is obtained by summing them:
 
-$$
-\hat{Y}
-=
-\hat{Y}_{\text{seasonal}}
-+
-\hat{Y}_{\text{trend}}.
-$$
+$$\hat{Y} = \hat{Y}_{\text{seasonal}} + \hat{Y}_{\text{trend}}.$$
 
 
 <details>
